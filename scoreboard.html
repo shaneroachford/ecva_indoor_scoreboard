@@ -33,8 +33,8 @@
     .dot{ width:12px; height:12px; border-radius:50% }
 
     .set-info-bar{ width:980px; max-width:100%; margin-top:8px; display:flex; background:#050517; border-radius:8px; overflow:hidden }
-    .set-number{ width:140px; padding:10px; text-align:center; border-right:2px solid rgba(255,255,255,0.04); }
-    .set-info{ flex:1; padding:10px; text-align:center; }
+    .set-number{ width:140px; padding:10px; text-align:center; border-right:2px solid rgba(255,255,255,0.04); font-weight:800; }
+    .set-info{ flex:1; padding:10px; text-align:center; font-weight:800; white-space:normal; word-break:break-word; min-height:20px; }
 
     /* ===== Score change motion (roll up / roll down) ===== */
     .score { position:relative; overflow:hidden; }
@@ -125,7 +125,7 @@
 
       document.getElementById('setNumber').textContent = `SET ${localStorage.getItem('setNumber') || '1'}`;
 
-      // timeouts
+      // timeout dots
       const t1 = parseInt(localStorage.getItem('team1Timeouts') || '2',10);
       const t2 = parseInt(localStorage.getItem('team2Timeouts') || '2',10);
       document.getElementById('t1_1').style.visibility = t1>=1 ? 'visible' : 'hidden';
@@ -146,9 +146,67 @@
       const t1Text = getContrastColor(t1Bg), t2Text = getContrastColor(t2Bg);
       document.getElementById('name1').style.color = t1Text; document.getElementById('score1').style.color = t1Text;
       document.getElementById('name2').style.color = t2Text; document.getElementById('score2').style.color = t2Text;
+
+      ['t1_1','t1_2'].forEach(id => {
+        const el = document.getElementById(id);
+        el.style.backgroundColor = t1Text;
+        el.style.border = 'none';
+      });
+      ['t2_1','t2_2'].forEach(id => {
+        const el = document.getElementById(id);
+        el.style.backgroundColor = t2Text;
+        el.style.border = 'none';
+      });
+
+      updateSetInfoBar(name1, name2);
     }
 
-    function computeSetInfo(name1,name2,s1,s2){ if (s1===0&&s2===0) return ''; if (s1===3||s2===3) return `${(s1===3?name1:name2)} Wins ${s1} - ${s2}`; if (s1===s2) return `Match tied ${s1} - ${s2}`; return `${(s1>s2?name1:name2)} LEADS ${s1} - ${s2}` }
+    function updateSetInfoBar(name1, name2){
+      const now = Date.now();
+      const rotateSec = Math.max(5, parseInt(localStorage.getItem('setInfoRotateSec') || '20', 10));
+      const customText = (localStorage.getItem('setInfo') || '').trim();
+      const sets1 = parseInt(localStorage.getItem('team1Sets') || '0', 10);
+      const sets2 = parseInt(localStorage.getItem('team2Sets') || '0', 10);
+      const computed = computeSetInfo(name1, name2, sets1, sets2);
+
+      const techUntil = parseInt(localStorage.getItem('technicalTimeoutUntil') || '0', 10);
+      const t1Until = parseInt(localStorage.getItem('timeoutTeam1Until') || '0', 10);
+      const t2Until = parseInt(localStorage.getItem('timeoutTeam2Until') || '0', 10);
+      const t1Remain = Math.max(0, Math.ceil((t1Until - now) / 1000));
+      const t2Remain = Math.max(0, Math.ceil((t2Until - now) / 1000));
+
+      let message = ' ';
+
+      if (techUntil && now < techUntil) {
+        const remain = Math.max(0, Math.ceil((techUntil - now) / 1000));
+        message = `TECHNICAL TIMEOUT (${remain}s)`;
+      } else if (t1Remain > 0 || t2Remain > 0) {
+        const useTeam1 = t1Remain >= t2Remain;
+        const teamName = useTeam1 ? name1 : name2;
+        const seconds = useTeam1 ? t1Remain : t2Remain;
+        message = `${teamName} Timeout (${seconds}s)`;
+      } else {
+        if (techUntil) localStorage.removeItem('technicalTimeoutUntil');
+        const haveCustom = !!customText;
+        const haveComputed = !!computed;
+
+        if (haveCustom && haveComputed) {
+          const bucket = Math.floor(now / (rotateSec * 1000)) % 2;
+          message = bucket === 1 ? computed : customText;
+        } else {
+          message = customText || computed || ' ';
+        }
+      }
+
+      document.getElementById('setInfo').textContent = message;
+    }
+
+    function computeSetInfo(name1,name2,s1,s2){
+      if (s1===0&&s2===0) return '';
+      if (s1===3||s2===3) return `${(s1===3?name1:name2)} Wins ${s1} - ${s2}`;
+      if (s1===s2) return `Match tied ${s1} - ${s2}`;
+      return `${(s1>s2?name1:name2)} LEADS ${s1} - ${s2}`;
+    }
     function getContrastColor(color){ const c=document.createElement('canvas').getContext('2d'); c.fillStyle=color; const computed=c.fillStyle; const hex = computed.charAt(0)==='#'?computed:rgbToHex(computed); const r=parseInt(hex.substr(1,2),16); const g=parseInt(hex.substr(3,2),16); const b=parseInt(hex.substr(5,2),16); const bright=(r*299+g*587+b*114)/1000; return bright>150?'black':'white' }
     function rgbToHex(rgb){ const nums = rgb.match(/\d+/g)||[0,0,0]; return '#'+nums.map(n=>Number(n).toString(16).padStart(2,'0')).join('') }
 
