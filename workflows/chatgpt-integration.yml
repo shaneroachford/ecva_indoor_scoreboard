@@ -1,0 +1,33 @@
+name: ChatGPT Integration
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  chatgpt:
+    runs-on: ubuntu-latest
+    env:
+      # Store your OpenAI API key in the repository secrets as OPENAI_API_KEY
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: ChatGPT Integration
+        uses: kxxt/chatgpt-action@v0.3
+        with:
+          openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+          # Change the model and prompt to suit your needs
+          model: gpt-4o
+          prompt: |
+            You are a helpful assistant. Summarize the repository changes in this run and suggest any improvements or potential risks.
+        env:
+          # Use the automatically-provided GITHUB_TOKEN for any repo write operations
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
