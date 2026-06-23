@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>OBS Scoreboard Control</title>
+  <style>
+    body { font-family: sans-serif; background: #1e1e1e; color: #fff; padding: 10px; margin: 0; font-size: 14px; }
+    label { display: block; margin-top: 10px; font-weight: bold; }
+    input, select, button { width: 100%; padding: 6px; margin-top: 4px; border: none; border-radius: 4px; font-size: 14px; }
+    input, select { background: #2e2e2e; color: #fff; }
+    button { background: #007acc; color: white; cursor: pointer; margin-top: 10px; }
+    button:hover { background: #005fa3; }
+    .section { margin-bottom: 20px; border-bottom: 1px solid #444; padding-bottom: 10px; }
+    .row { display: flex; gap: 10px; margin-top: 6px; }
+    .row button { flex: 1; }
+    .set-controls { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+    .set-controls span { flex: 1; text-align: center; }
+    .danger { background: #dc3545; }
+    .muted { background: #555; }
+    .accent { background: #6c5ce7; }
+    .subrow { display:flex; gap:10px; margin-top:6px; }
+    .inline { display:flex; align-items:center; gap:8px; margin-top:6px; }
+    .center-controls { display:flex; gap:10px; align-items:center; justify-content:center; margin: 6px 0 12px; flex-wrap: wrap; }
+    .inline-input { display:flex; align-items:center; gap:8px; }
+    .inline-input input { width: 90px; text-align: right; }
+  </style>
+</head>
+<body>
+  <div class="section">
+    <label>Select Team 1</label>
+    <select id="team1Select"></select>
+
+    <div class="inline">
+      <strong>Serving</strong>
+      <input type="radio" id="serveTeam1" name="serveSelect" value="team1" />
+    </div>
+
+    <label>Team 1 Background</label>
+    <input type="text" id="team1BgColor" placeholder="#222222 or red" />
+
+    <label>Team 1 Timeouts</label>
+    <select id="team1Timeouts"><option value="2">2</option><option value="1">1</option><option value="0">0</option></select>
+
+    <div class="row">
+      <button onclick="changeScore('team1Score', 1)">+1</button>
+      <button onclick="changeScore('team1Score', -1)">−1</button>
+    </div>
+
+    <!-- NEW: Set score controls -->
+    <div class="row">
+      <button onclick="changeSetScore('team1', 1)">Set +</button>
+      <button onclick="changeSetScore('team1', -1)">Set −</button>
+    </div>
+
+    <div class="subrow">
+      <button class="muted" onclick="triggerTeamTimeout('team1', 30)">Timeout 30s</button>
+      <button class="muted" onclick="cancelTeamTimeout('team1')">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Center controls between teams -->
+  <div class="center-controls">
+    <button class="accent" onclick="sideOut()">Side Out</button>
+
+    <div class="inline-input">
+      <label for="techLen"><strong>Technical Timeout</strong></label>
+      <input id="techLen" type="number" min="10" max="300" step="5" value="60" />
+      <span>s</span>
+    </div>
+
+    <button class="accent" onclick="startTechnicalTimeout()">Start</button>
+    <button class="muted" onclick="cancelTechnicalTimeout()">Cancel</button>
+    <button class="accent" onclick="swapSides()">Swap Sides</button>
+  </div>
+
+  <div class="section">
+    <label>Select Team 2</label>
+    <select id="team2Select"></select>
+
+    <div class="inline">
+      <strong>Serving</strong>
+      <input type="radio" id="serveTeam2" name="serveSelect" value="team2" />
+    </div>
+
+    <label>Team 2 Background</label>
+    <input type="text" id="team2BgColor" placeholder="#b22222 or blue" />
+
+    <label>Team 2 Timeouts</label>
+    <select id="team2Timeouts"><option value="2">2</option><option value="1">1</option><option value="0">0</option></select>
+
+    <div class="row">
+      <button onclick="changeScore('team2Score', 1)">+1</button>
+      <button onclick="changeScore('team2Score', -1)">−1</button>
+    </div>
+
+    <!-- NEW: Set score controls -->
+    <div class="row">
+      <button onclick="changeSetScore('team2', 1)">Set +</button>
+      <button onclick="changeSetScore('team2', -1)">Set −</button>
+    </div>
+
+    <div class="subrow">
+      <button class="muted" onclick="triggerTeamTimeout('team2', 30)">Timeout 30s</button>
+      <button class="muted" onclick="cancelTeamTimeout('team2')">Cancel</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <label>Set Info</label><input type="text" id="setInfoInput" />
+    <label>Set Number</label>
+    <div class="set-controls"><button onclick="changeSet(-1)">−</button><span id="setDisplay">1</span><button onclick="changeSet(1)">+</button></div>
+  </div>
+
+  <div class="row">
+    <button onclick="updateScoreboard()">Update Scoreboard</button>
+    <button class="danger" onclick="resetScoreboard()">Reset</button>
+  </div>
+
+  <script>
+    const teams = [
+      { name: "AGU | ANGUILLA", flag: "flags/Anguilla.jpg", bg: "#222222" },
+      { name: "ANT | ANTIGUA & BARBUDA", flag: "flags/Antigua & Barbuda.jpg", bg: "#b22222" },
+      { name: "BER | BERMUDA", flag: "flags/Bermuda.jpg", bg: "#b22222" },
+      { name: "IVB | BRITISH VIRGIN ISLANDS", flag: "flags/British Virgin Islands.jpg", bg: "#b22222" },
+      { name: "DMA | DOMINICA", flag: "flags/Dominica.jpg", bg: "#222222" },
+      { name: "GRN | GRENDADA", flag: "flags/Grenada.jpg", bg: "#b22222" },
+      { name: "SAB | SABA", flag: "flags/Saba.png", bg: "#b22222" },
+      { name: "SKN | ST. KITTS & NEVIS", flag: "flags/Saint Kitts & Nevis.jpg", bg: "#0033a0" },
+      { name: "LCA | ST. LUCIA", flag: "flags/Saint Lucia.jpg", bg: "#b22222" },
+      { name: "FSM | ST. MARTIN", flag: "flags/Saint Martin.jpg", bg: "#d52b1e" },
+      { name: "VIN | ST. VINCENT & THE GRENADINES", flag: "flags/Saint Vincent & The Grenadines.jpg", bg: "#b22222" },
+      { name: "EUX | ST. EUSTATIUS", flag: "flags/Sint Eustatius.png", bg: "#b22222" },
+      { name: "SXM | ST. MAARTEN", flag: "flags/Sint Maarten.jpg", bg: "#b22222" }
+    ];
+
+    function populateTeamDropdowns() {
+      const team1Select = document.getElementById("team1Select");
+      const team2Select = document.getElementById("team2Select");
+      teams.forEach((team, index) => {
+        const option1 = document.createElement("option");
+        option1.value = index; option1.textContent = team.name; team1Select.appendChild(option1);
+        const option2 = document.createElement("option");
+        option2.value = index; option2.textContent = team.name; team2Select.appendChild(option2);
+      });
+
+      const t1Name = localStorage.getItem("team1Name");
+      const t2Name = localStorage.getItem("team2Name");
+      if (t1Name) {
+        const idx1 = teams.findIndex(t => t.name === t1Name);
+        if (idx1 >= 0) team1Select.value = String(idx1);
+      }
+      if (t2Name) {
+        const idx2 = teams.findIndex(t => t.name === t2Name);
+        if (idx2 >= 0) team2Select.value = String(idx2);
+      }
+    }
+
+    function setServe(team) {
+      localStorage.setItem('servingTeam', team);
+      document.getElementById('serveTeam1').checked = team === 'team1';
+      document.getElementById('serveTeam2').checked = team === 'team2';
+    }
+
+    function sideOut() {
+      const current = localStorage.getItem('servingTeam');
+      setServe(current === 'team1' ? 'team2' : 'team1');
+    }
+
+    function changeScore(key, delta) {
+      let current = parseInt(localStorage.getItem(key) || '0', 10);
+      let updated = Math.max(0, current + delta);
+      localStorage.setItem(key, updated);
+
+      // Auto-serve only on +1
+      if (delta > 0) {
+        if (key === 'team1Score') setServe('team1');
+        else if (key === 'team2Score') setServe('team2');
+      }
+    }
+
+    // NEW: change set score with total ≤ 5 and per-team ≤ 3
+    function changeSetScore(team, delta) {
+      let s1 = parseInt(localStorage.getItem('team1Sets') || '0', 10);
+      let s2 = parseInt(localStorage.getItem('team2Sets') || '0', 10);
+
+      if (delta > 0) {
+        if (s1 + s2 >= 5) return; // total cap
+        if (team === 'team1' && s1 < 3) s1++;
+        if (team === 'team2' && s2 < 3) s2++;
+      } else if (delta < 0) {
+        if (team === 'team1') s1 = Math.max(0, s1 - 1);
+        if (team === 'team2') s2 = Math.max(0, s2 - 1);
+      }
+
+      localStorage.setItem('team1Sets', String(s1));
+      localStorage.setItem('team2Sets', String(s2));
+    }
+
+    function updateScoreboard() {
+      const team1 = teams[document.getElementById("team1Select").value];
+      const team2 = teams[document.getElementById("team2Select").value];
+
+      localStorage.setItem("team1Name", team1.name);
+      localStorage.setItem("team1Flag", team1.flag);
+      localStorage.setItem("team2Name", team2.name);
+      localStorage.setItem("team2Flag", team2.flag);
+
+      const t1Color = document.getElementById('team1BgColor').value.trim();
+      const t2Color = document.getElementById('team2BgColor').value.trim();
+      if (t1Color) localStorage.setItem("team1BgColor", t1Color);
+      else if (!localStorage.getItem("team1BgColor")) localStorage.setItem("team1BgColor", team1.bg);
+      if (t2Color) localStorage.setItem("team2BgColor", t2Color);
+      else if (!localStorage.getItem("team2BgColor")) localStorage.setItem("team2BgColor", team2.bg);
+
+      localStorage.setItem("setInfo", document.getElementById("setInfoInput").value);
+      localStorage.setItem('team1Timeouts', document.getElementById('team1Timeouts').value);
+      localStorage.setItem('team2Timeouts', document.getElementById('team2Timeouts').value);
+    }
+
+    // TEAM 30s timeouts, mutually exclusive with Technical
+    function triggerTeamTimeout(team, seconds) {
+      localStorage.removeItem('technicalTimeoutUntil');
+      const until = Date.now() + (seconds * 1000);
+      if (team === 'team1') {
+        localStorage.setItem('timeoutTeam1Until', String(until));
+        localStorage.removeItem('timeoutTeam2Until');
+        if (seconds === 30) {
+          let rem = parseInt(localStorage.getItem('team1Timeouts') || '2', 10);
+          rem = Math.max(0, rem - 1);
+          localStorage.setItem('team1Timeouts', String(rem));
+          document.getElementById('team1Timeouts').value = String(rem);
+        }
+      } else {
+        localStorage.setItem('timeoutTeam2Until', String(until));
+        localStorage.removeItem('timeoutTeam1Until');
+        if (seconds === 30) {
+          let rem = parseInt(localStorage.getItem('team2Timeouts') || '2', 10);
+          rem = Math.max(0, rem - 1);
+          localStorage.setItem('team2Timeouts', String(rem));
+          document.getElementById('team2Timeouts').value = String(rem);
+        }
+      }
+    }
+    function cancelTeamTimeout(team) {
+      if (team === 'team1') localStorage.removeItem('timeoutTeam1Until');
+      else localStorage.removeItem('timeoutTeam2Until');
+    }
+
+    // TECHNICAL Timeout (configurable seconds) — not assigned to any team
+    function startTechnicalTimeout() {
+      localStorage.removeItem('timeoutTeam1Until');
+      localStorage.removeItem('timeoutTeam2Until');
+
+      const len = Math.max(5, parseInt(document.getElementById('techLen').value || '60', 10));
+      const until = Date.now() + (len * 1000);
+      localStorage.setItem('technicalTimeoutUntil', String(until));
+    }
+    function cancelTechnicalTimeout() {
+      localStorage.removeItem('technicalTimeoutUntil');
+    }
+
+    function resetScoreboard() {
+      if (!confirm('Reset scoreboard? This restores both teams timeouts to 2 and clears scores, set scores, and timeouts.')) return;
+
+      const keep = {
+        team1Bg: localStorage.getItem('team1BgColor'),
+        team2Bg: localStorage.getItem('team2BgColor')
+      };
+      localStorage.clear();
+
+      // Reset scores/set & set scores & timeouts
+      localStorage.setItem('team1Score','0'); localStorage.setItem('team2Score','0');
+      localStorage.setItem('team1Sets','0'); localStorage.setItem('team2Sets','0');
+      localStorage.setItem('team1Timeouts','2'); localStorage.setItem('team2Timeouts','2');
+      localStorage.setItem('setNumber','1');
+
+      if (keep.team1Bg) localStorage.setItem('team1BgColor', keep.team1Bg);
+      if (keep.team2Bg) localStorage.setItem('team2BgColor', keep.team2Bg);
+
+      document.getElementById('setDisplay').textContent='1';
+      document.getElementById('serveTeam1').checked = false;
+      document.getElementById('serveTeam2').checked = false;
+
+      document.getElementById('team1Timeouts').value = '2';
+      document.getElementById('team2Timeouts').value = '2';
+
+      cancelTechnicalTimeout();
+      localStorage.removeItem('timeoutTeam1Until');
+      localStorage.removeItem('timeoutTeam2Until');
+    }
+
+    function changeSet(delta) {
+      let current = parseInt(localStorage.getItem('setNumber') || '1', 10);
+      let updated = Math.min(5, Math.max(1, current + delta));
+      localStorage.setItem('setNumber', updated);
+      document.getElementById('setDisplay').textContent = updated;
+    }
+
+    function swapSides() {
+      const t1Sel = document.getElementById("team1Select");
+      const t2Sel = document.getElementById("team2Select");
+      const tmpIndex = t1Sel.value;
+      t1Sel.value = t2Sel.value;
+      t2Sel.value = tmpIndex;
+
+      const keys = [
+        ['team1Name','team2Name'],
+        ['team1Flag','team2Flag'],
+        ['team1BgColor','team2BgColor'],
+        ['team1Score','team2Score'],
+        ['team1Timeouts','team2Timeouts'],
+        ['timeoutTeam1Until','timeoutTeam2Until'],
+        ['team1Sets','team2Sets'] // include set scores in swap
+      ];
+      keys.forEach(([a,b]) => {
+        const av = localStorage.getItem(a);
+        const bv = localStorage.getItem(b);
+        if (av === null && bv === null) return;
+        localStorage.setItem(a, bv ?? '');
+        localStorage.setItem(b, av ?? '');
+      });
+
+      const serving = localStorage.getItem('servingTeam');
+      if (serving === 'team1') setServe('team2');
+      else if (serving === 'team2') setServe('team1');
+    }
+
+    window.addEventListener("load", () => {
+      populateTeamDropdowns();
+      document.getElementById("setDisplay").textContent = localStorage.getItem("setNumber") || "1";
+
+      document.getElementById('team1BgColor').value = localStorage.getItem('team1BgColor') || '';
+      document.getElementById('team2BgColor').value = localStorage.getItem('team2BgColor') || '';
+
+      document.getElementById('team1BgColor').addEventListener('input', (e) => {
+        if (e.target.value.trim()) localStorage.setItem('team1BgColor', e.target.value.trim());
+      });
+      document.getElementById('team2BgColor').addEventListener('input', (e) => {
+        if (e.target.value.trim()) localStorage.setItem('team2BgColor', e.target.value.trim());
+      });
+
+      document.getElementById('team1Select').addEventListener('change', (ev) => {
+        const t = teams[ev.target.value];
+        if (!localStorage.getItem('team1BgColor')) document.getElementById('team1BgColor').value = t.bg;
+        localStorage.setItem('team1Name', t.name);
+        localStorage.setItem('team1Flag', t.flag);
+      });
+      document.getElementById('team2Select').addEventListener('change', (ev) => {
+        const t = teams[ev.target.value];
+        if (!localStorage.getItem('team2BgColor')) document.getElementById('team2BgColor').value = t.bg;
+        localStorage.setItem('team2Name', t.name);
+        localStorage.setItem('team2Flag', t.flag);
+      });
+
+      document.getElementById('serveTeam1').addEventListener('change', () => setServe('team1'));
+      document.getElementById('serveTeam2').addEventListener('change', () => setServe('team2'));
+
+      // Initialize set scores if missing
+      if (localStorage.getItem('team1Sets') === null) localStorage.setItem('team1Sets','0');
+      if (localStorage.getItem('team2Sets') === null) localStorage.setItem('team2Sets','0');
+    });
+  </script>
+</body>
+</html>

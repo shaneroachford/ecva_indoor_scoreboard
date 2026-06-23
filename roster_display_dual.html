@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>OBS Roster Display (Dual Side)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{
+      --bg1:#061a7a; --bg2:#0b2aa8;
+      --row:#1238d0; --row-accent:#0d2fb4;
+      --pos:#ff6c54; --text:#ffffff;
+      --num-bg:#0a1f8a;
+    }
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color:var(--text);
+
+      /* Animated gradient */
+      background: linear-gradient(135deg, var(--bg1), var(--bg2), #1a237e, #283593, #4554f8, #a7adf0);
+      background-size: 400% 400%;
+      animation: bgShift 15s ease infinite;
+    }
+    @keyframes bgShift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    .wrap{ padding:24px; }
+    .title{
+      margin:0;
+      font-size:28px;
+      letter-spacing:.5px;
+      text-transform: uppercase;
+      text-align:center;
+      margin-bottom: 20px;
+    }
+    .list{ display:flex; flex-direction:column; gap:10px; }
+    .row{ display:flex; align-items:center; gap:10px; min-height:54px; }
+    .card{
+      display:flex; align-items:center; gap:10px;
+      background: linear-gradient(180deg, var(--row), var(--row-accent));
+      border-radius:10px; padding:6px 10px; flex: 1 1 auto;
+      box-shadow: inset 0 -2px 0 rgba(0,0,0,.12);
+    }
+    .shirt{
+      min-width:46px; text-align:center; background: var(--num-bg); border-radius:10px;
+      padding:10px 10px; font-weight:800; font-size:18px; letter-spacing:.5px;
+    }
+    .pos{
+      min-width:64px; text-align:center; background: var(--pos); color:#fff; border-radius:8px;
+      padding:8px 10px; font-weight:800; font-size:14px; letter-spacing:.5px;
+    }
+    .name{
+      flex:1 1 auto; padding:6px 8px; font-weight:800; font-size:18px; letter-spacing:.8px;
+      text-transform: uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    }
+    @media (max-width: 600px){
+      .shirt{ min-width:38px; font-size:16px; padding:8px 8px; }
+      .pos{ min-width:56px; font-size:13px; padding:6px 8px; }
+      .name{ font-size:16px; }
+      .row{ min-height:48px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1 class="title" id="teamName">TEAM TEAM ROSTER</h1>
+    <div class="list" id="list"></div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const SIDE = (params.get('side') || 'left').toLowerCase() === 'right' ? 'right' : 'left';
+    const CHANNEL = SIDE === 'right' ? 'obs_roster_right' : 'obs_roster_left';
+    const LS_KEY  = SIDE === 'right' ? 'obs_roster_data_right'  : 'obs_roster_data_left';
+    const LS_BUMP = SIDE === 'right' ? 'obs_roster_bump_right' : 'obs_roster_bump_left';
+    const bc = ('BroadcastChannel' in window) ? new BroadcastChannel(CHANNEL) : null;
+
+    function fullName(p){
+      const first = (p.first_name||'').trim();
+      const last  = (p.last_name||'').trim();
+      return (first || last) ? (first + ' ' + last).trim() : (p.shirt_name||'').trim();
+    }
+
+    function render(payload){
+      if (!payload || !payload.teams) return;
+      const teamName = payload.selected || 'TEAM';
+      const players = payload.teams[teamName] || [];
+      document.getElementById('teamName').textContent = (teamName + ' TEAM ROSTER').toUpperCase();
+
+      const list = document.getElementById('list');
+      list.innerHTML = '';
+      players.forEach(p=>{
+        const row = document.createElement('div');
+        row.className = 'row';
+        row.innerHTML = `
+          <div class="shirt">${(p.shirt||'')}</div>
+          <div class="card">
+            <div class="pos">${(p.pos||p.role||'').toUpperCase()}</div>
+            <div class="name">${fullName(p).toUpperCase()}</div>
+          </div>
+        `;
+        list.appendChild(row);
+      });
+    }
+
+    function readLS(){
+      try { const raw = localStorage.getItem(LS_KEY); return raw ? JSON.parse(raw) : null; }
+      catch { return null; }
+    }
+
+    const initial = readLS();
+    if (initial) render(initial);
+
+    if (bc) {
+      bc.onmessage = (ev) => {
+        if (ev?.data?.type === 'roster:update') render(ev.data.payload);
+      };
+    }
+
+    let lastBump = null;
+    setInterval(()=>{
+      const bump = localStorage.getItem(LS_BUMP);
+      if (bump && bump !== lastBump) {
+        lastBump = bump;
+        const payload = readLS();
+        if (payload) render(payload);
+      }
+    }, 1000);
+  </script>
+</body>
+</html>

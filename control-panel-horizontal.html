@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>OBS Scoreboard Control — Horizontal</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg:#1e1e1e; --panel:#2a2a2a; --text:#fff; --muted:#bbb; --accent:#6c5ce7;
+      --danger:#dc3545; --btn:#007acc; --btn-hover:#005fa3; --divider:#3a3a3a;
+      --ui-scale:1; --base-font: clamp(12px, 14px, 16px);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 14px; background: var(--bg); color: var(--text); font-family: system-ui, Arial, sans-serif; }
+    .scaler { transform: scale(var(--ui-scale)); transform-origin: top center; will-change: transform; }
+    .wrap { display: flex; gap: 16px; align-items: stretch; justify-content: center; font-size: var(--base-font); }
+    .col {
+      background: var(--panel); border-radius: 10px; padding: 14px; min-width: 320px; flex: 0 0 33%;
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    .divider { width: 6px; background: var(--divider); border-radius: 6px; }
+    .title { font-size: clamp(14px, 16px, 18px); font-weight: 800; letter-spacing: .4px; opacity: .95; }
+    .section { display: flex; flex-direction: column; gap: 8px; }
+    .row { display: flex; gap: 10px; }
+    .row > * { flex: 1 1 0; }
+    label { font-weight: 700; font-size: 1em; }
+    select, input[type="text"], input[type="number"], input[type="file"] {
+      width: 100%; padding: 8px; border: 1px solid #444; border-radius: 6px; background: #1a1a1a; color: var(--text);
+      font-size: 1em;
+    }
+    .radio-line { display:flex; align-items:center; gap:10px; }
+    .inline { display:flex; align-items:center; gap:10px; }
+    .small-inline { display:flex; align-items:center; gap:8px; color:var(--muted); }
+    .badge { font-weight: 800; color: var(--muted); }
+    .btn { padding: 10px; border: none; border-radius: 8px; background: var(--btn); color: #fff; cursor: pointer; font-weight: 700; font-size: 1em; }
+    .btn:hover { background: var(--btn-hover); }
+    .btn.muted { background: #555; }
+    .btn.accent { background: var(--accent); }
+    .btn.danger { background: var(--danger); }
+    .btn.small { padding: 8px; font-size: .9em; }
+    .center-grid { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(220px, 1fr)); align-items: end; }
+    .center-wide { grid-column: 1 / -1; }
+    .readout { background:#1a1a1a; border:1px solid #3a3a3a; border-radius:8px; padding:10px; display:flex; flex-direction:column; gap:6px; }
+    .readout .line{ display:flex; justify-content:space-between; align-items:center; }
+    .readout .score{ font-weight:800; font-size: clamp(16px, 18px, 22px); }
+    .warn { color:#ffcd52; font-weight:700; }
+    .error { color:#ff6b6b; font-weight:700; }
+    .ok { color:#38c172; font-weight:700; }
+    @media (max-width:1100px){
+      .wrap{ flex-direction:column; }
+      .divider{ width:100%; height:6px; }
+      .col{ min-width:100%; }
+      .center-grid{ grid-template-columns:1fr; }
+    }
+  </style>
+  <!-- Excel reader -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <!-- SCALE CONTROL -->
+  <div class="scale-row" style="display:flex; align-items:center; gap:10px; max-width:1120px; margin:0 auto 10px;">
+    <label for="uiScale" style="font-weight:800;">UI Scale</label>
+    <input id="uiScale" type="range" min="0.70" max="1.20" step="0.05" value="1.00" style="flex:1;" />
+    <output id="uiScaleOut" style="width:3.5em; text-align:right; color:var(--muted); font-weight:700;">1.00×</output>
+  </div>
+
+  <div class="scaler" id="scaler">
+    <div class="wrap">
+      <!-- LEFT -->
+      <div class="col" id="leftCol">
+        <div class="title">Left Team</div>
+
+        <div class="section">
+          <label for="l_teamSelect">Select Team</label>
+          <select id="l_teamSelect"></select>
+        </div>
+
+        <div class="section radio-line">
+          <strong>Serving</strong>
+          <input type="radio" id="serveLeft" name="serveSelect" value="team1" />
+        </div>
+
+        <div class="section">
+          <label for="l_bg">Background Color</label>
+          <input id="l_bg" type="text" placeholder="#222222 or red" />
+        </div>
+
+        <div class="section">
+          <label for="l_timeouts">Timeouts Remaining</label>
+          <select id="l_timeouts"><option>2</option><option>1</option><option>0</option></select>
+        </div>
+
+        <div class="section">
+          <label>Points</label>
+          <div class="row">
+            <button class="btn" onclick="changeScore('team1Score', -1)">−1</button>
+            <button class="btn" onclick="changeScore('team1Score', 1)">+1</button>
+          </div>
+        </div>
+
+        <!-- NEW: Reset Left Points -->
+        <div class="section">
+          <button class="btn danger small" onclick="resetTeamPoints('team1Score')">
+            Reset Left Points
+          </button>
+        </div>
+
+        <div class="section">
+          <div class="inline">
+            <label style="margin:0">Set Score</label>
+            <span class="badge">Current: <span id="l_setDisplay">0</span></span>
+          </div>
+          <div class="row">
+            <button class="btn" onclick="changeSetScore('team1', -1)">Set −</button>
+            <button class="btn" onclick="changeSetScore('team1', 1)">Set +</button>
+          </div>
+        </div>
+
+        <div class="section">
+          <label>Team Timeout</label>
+          <div class="row">
+            <button class="btn muted" onclick="triggerTeamTimeout('team1', 30)">Timeout 30s</button>
+            <button class="btn muted" onclick="cancelTeamTimeout('team1')">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- CENTER -->
+      <div class="col" id="centerCol">
+        <div class="title">Match Controls</div>
+
+        <div class="center-grid" id="centerGrid">
+          <div class="section">
+            <label>Side Out</label>
+            <button class="btn accent" onclick="sideOut()">Side Out</button>
+          </div>
+
+          <div class="section">
+            <label for="techLen">Technical Timeout (seconds)</label>
+            <div class="row">
+              <input id="techLen" type="number" min="10" max="300" step="5" value="60" />
+              <button class="btn accent" onclick="startTechnicalTimeout()">Start</button>
+            </div>
+            <button class="btn muted small" onclick="cancelTechnicalTimeout()">Cancel Technical</button>
+          </div>
+
+          <div class="section">
+            <label>Swap Sides</label>
+            <button class="btn accent" onclick="swapSides()">Swap Sides</button>
+            <div class="small-inline">Serving: <span id="serveBadge" class="badge">—</span></div>
+          </div>
+
+          <div class="section">
+            <label for="setInfoInput">Set Info (custom text)</label>
+            <input id="setInfoInput" type="text" placeholder="e.g., Quarterfinal • Court 3" />
+          </div>
+
+          <div class="section">
+            <label>Set Number</label>
+            <div class="row">
+              <button class="btn" onclick="changeSet(-1)">−</button>
+              <button class="btn" onclick="changeSet(1)">+</button>
+            </div>
+            <div class="inline" style="color:var(--muted)">Current: <span id="setDisplay" style="margin-left:6px;font-weight:800;">1</span></div>
+          </div>
+
+          <div class="section center-wide">
+            <div class="readout" id="readout">
+              <div class="line"><div>Set Score</div><div class="score" id="readoutScore">0 – 0</div></div>
+              <div class="line"><div>Status</div><div id="readoutStatus" class="badge">—</div></div>
+            </div>
+          </div>
+
+          <div class="section">
+            <label for="rotateSec">Set Info Rotation (seconds)</label>
+            <div class="row">
+              <input id="rotateSec" type="number" min="5" max="300" step="5" value="20" />
+              <button class="btn" onclick="saveRotateSec()">Save</button>
+            </div>
+            <div class="small-inline">Current: <span id="rotateSecDisplay" class="badge">20s</span></div>
+          </div>
+
+          <div class="section center-wide">
+            <div class="row">
+              <button class="btn" onclick="updateScoreboard()">Update Scoreboard</button>
+              <button class="btn danger" onclick="resetScoreboard()">Reset</button>
+            </div>
+          </div>
+
+          <!-- ===== ROSTER CONTROL (two-team + swap + reset on new Excel) ===== -->
+          <div class="section center-wide" id="rosterSection">
+            <div class="title" style="margin-top:4px;">Roster Control</div>
+
+            <div class="row">
+              <div>
+                <label for="rosterExcel">Excel file</label>
+                <input id="rosterExcel" type="file" accept=".xlsx,.xls,.xlsm" />
+              </div>
+              <div>
+                <label for="rosterTeamLeft">Left Team (sheet)</label>
+                <select id="rosterTeamLeft" disabled>
+                  <option>— load a file —</option>
+                </select>
+              </div>
+              <div>
+                <label for="rosterTeamRight">Right Team (sheet)</label>
+                <select id="rosterTeamRight" disabled>
+                  <option>— load a file —</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="small-inline" style="flex:2;">
+                <span class="badge">Rule:</span> Left and Right must be different teams.
+                <span id="rosterMsg" style="margin-left:10px;"></span>
+              </div>
+              <div style="display:flex; gap:10px; justify-content:flex-end; flex:1;">
+                <button class="btn muted" id="rosterSwapBtn" disabled>Swap Rosters</button>
+                <button class="btn accent" id="rosterLoadBothBtn" disabled>Load Rosters</button>
+              </div>
+            </div>
+
+            <div class="small-inline">
+              Required columns (any order): <span class="badge">Shirt, Role, Last name, First name, Shirt name, Pos</span>
+            </div>
+          </div>
+          <!-- ===== end roster ===== -->
+
+          <!-- ===== STARTING LINEUPS ===== -->
+          <div class="section center-wide" id="lineupSection">
+            <div class="title" style="margin-top:4px;">Starting Lineups</div>
+
+            <div class="small-inline">
+              Assign six distinct players to official rotation spots (1–6). Court map in display: 4–3–2 (front) • 5–6–1 (back).
+              Libero will be outlined automatically.
+            </div>
+
+            <!-- LEFT LINEUP -->
+            <div class="section">
+              <label><strong>Left Team Lineup (from selected Left roster sheet)</strong></label>
+              <div class="row" id="leftLineupGrid" style="flex-wrap:wrap; gap:8px;"></div>
+            </div>
+
+            <!-- RIGHT LINEUP -->
+            <div class="section">
+              <label><strong>Right Team Lineup (from selected Right roster sheet)</strong></label>
+              <div class="row" id="rightLineupGrid" style="flex-wrap:wrap; gap:8px;"></div>
+            </div>
+
+            <div class="row">
+              <div style="display:flex; gap:8px;">
+                <button class="btn muted small" id="lineupAutoLeft"  disabled>Auto-fill Left Top 6</button>
+                <button class="btn muted small" id="lineupClearLeft" disabled>Clear Left</button>
+              </div>
+              <div style="display:flex; gap:8px;">
+                <button class="btn muted small" id="lineupAutoRight" disabled>Auto-fill Right Top 6</button>
+                <button class="btn muted small" id="lineupClearRight" disabled>Clear Right</button>
+              </div>
+              <div style="display:flex; gap:8px; justify-content:flex-end;">
+                <button class="btn accent" id="lineupLoadBothBtn" disabled>Load Starters to Displays</button>
+              </div>
+            </div>
+          </div>
+          <!-- ===== END STARTING LINEUPS ===== -->
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- RIGHT -->
+      <div class="col" id="rightCol">
+        <div class="title">Right Team</div>
+
+        <div class="section">
+          <label for="r_teamSelect">Select Team</label>
+          <select id="r_teamSelect"></select>
+        </div>
+
+        <div class="section radio-line">
+          <strong>Serving</strong>
+          <input type="radio" id="serveRight" name="serveSelect" value="team2" />
+        </div>
+
+        <div class="section">
+          <label for="r_bg">Background Color</label>
+          <input id="r_bg" type="text" placeholder="#b22222 or blue" />
+        </div>
+
+        <div class="section">
+          <label for="r_timeouts">Timeouts Remaining</label>
+          <select id="r_timeouts"><option>2</option><option>1</option><option>0</option></select>
+        </div>
+
+        <div class="section">
+          <label>Points</label>
+          <div class="row">
+            <button class="btn" onclick="changeScore('team2Score', -1)">−1</button>
+            <button class="btn" onclick="changeScore('team2Score', 1)">+1</button>
+          </div>
+        </div>
+
+        <!-- NEW: Reset Right Points -->
+        <div class="section">
+          <button class="btn danger small" onclick="resetTeamPoints('team2Score')">
+            Reset Right Points
+          </button>
+        </div>
+
+        <div class="section">
+          <div class="inline">
+            <label style="margin:0">Set Score</label>
+            <span class="badge">Current: <span id="r_setDisplay">0</span></span>
+          </div>
+          <div class="row">
+            <button class="btn" onclick="changeSetScore('team2', -1)">Set −</button>
+            <button class="btn" onclick="changeSetScore('team2', 1)">Set +</button>
+          </div>
+        </div>
+
+        <div class="section">
+          <label>Team Timeout</label>
+          <div class="row">
+            <button class="btn muted" onclick="triggerTeamTimeout('team2', 30)">Timeout 30s</button>
+            <button class="btn muted" onclick="cancelTeamTimeout('team2')">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  /*************** Static team list (unchanged) ***************/
+  const teams = [
+    { code: "AGU", name: "ANGUILLA", flag: "flags/Anguilla.jpg", bg: "#222222" },
+    { code: "ANT", name: "ANTIGUA", flag: "flags/Antigua & Barbuda.jpg", bg: "#b22222" },
+    { code: "BER", name: "BERMUDA", flag: "flags/Bermuda.jpg", bg: "#b22222" },
+    { code: "IVB", name: "BRITISH VI", flag: "flags/British Virgin Islands.jpg", bg: "#b22222" },
+    { code: "DMA", name: "DOMINICA", flag: "flags/Dominica.jpg", bg: "#222222" },
+    { code: "GRN", name: "GRENADA", flag: "flags/Grenada.jpg", bg: "#b22222" },
+    { code: "SAB", name: "SABA", flag: "flags/Saba.png", bg: "#b22222" },
+    { code: "SKN", name: "ST. KITTS", flag: "flags/Saint Kitts & Nevis.jpg", bg: "#0033a0" },
+    { code: "LCA", name: "ST. LUCIA", flag: "flags/Saint Lucia.jpg", bg: "#b22222" },
+    { code: "FSM", name: "ST. MARTIN", flag: "flags/Saint Martin.jpg", bg: "#d52b1e" },
+    { code: "VIN", name: "ST. VINCENT", flag: "flags/Saint Vincent & The Grenadines.jpg", bg: "#b22222" },
+    { code: "EUX", name: "ST. EUSTATIUS", flag: "flags/Sint Eustatius.png", bg: "#b22222" },
+    { code: "SXM", name: "ST. MAARTEN", flag: "flags/Sint Maarten.jpg", bg: "#b22222" }
+  ];
+
+  /*************** Scoreboard UI wiring (unchanged) ***************/
+  function populateTeamDropdowns() {
+    const lSel = document.getElementById("l_teamSelect");
+    const rSel = document.getElementById("r_teamSelect");
+    [lSel, rSel].forEach(sel => {
+      sel.innerHTML = "";
+      teams.forEach((team, idx) => {
+        const opt = document.createElement("option");
+        opt.value = String(idx);
+        opt.textContent = team.name;
+        sel.appendChild(opt);
+      });
+    });
+
+    const t1Name = localStorage.getItem("team1Name");
+    const t2Name = localStorage.getItem("team2Name");
+    if (t1Name) { const i = teams.findIndex(t => t.name === t1Name); if (i >= 0) lSel.value = String(i); }
+    if (t2Name) { const j = teams.findIndex(t => t.name === t2Name); if (j >= 0) rSel.value = String(j); }
+
+    if (lSel.value === rSel.value) {
+      rSel.value = String((parseInt(rSel.value || "0",10) + 1) % teams.length);
+      pushRightTeamToStorage();
+    }
+  }
+  function pushLeftTeamToStorage() {
+    const team = teams[document.getElementById("l_teamSelect").value];
+    localStorage.setItem("team1Name", team.name);
+    localStorage.setItem("team1Flag", team.flag);
+    const val = document.getElementById("l_bg").value.trim();
+    if (val) localStorage.setItem("team1BgColor", val);
+    else if (!localStorage.getItem("team1BgColor")) localStorage.setItem("team1BgColor", team.bg);
+    localStorage.setItem("team1Timeouts", document.getElementById("l_timeouts").value);
+  }
+  function pushRightTeamToStorage() {
+    const team = teams[document.getElementById("r_teamSelect").value];
+    localStorage.setItem("team2Name", team.name);
+    localStorage.setItem("team2Flag", team.flag);
+    const val = document.getElementById("r_bg").value.trim();
+    if (val) localStorage.setItem("team2BgColor", val);
+    else if (!localStorage.getItem("team2BgColor")) localStorage.setItem("team2BgColor", team.bg);
+    localStorage.setItem("team2Timeouts", document.getElementById("r_timeouts").value);
+  }
+  function renderStorageToUI() {
+    const lName = localStorage.getItem("team1Name");
+    if (lName) { const idx = teams.findIndex(t => t.name === lName); if (idx >= 0) document.getElementById("l_teamSelect").value = String(idx); }
+    document.getElementById("l_bg").value = localStorage.getItem("team1BgColor") || "";
+    document.getElementById("l_timeouts").value = localStorage.getItem("team1Timeouts") || "2";
+    document.getElementById("l_setDisplay").textContent = localStorage.getItem("team1Sets") || "0";
+
+    const rName = localStorage.getItem("team2Name");
+    if (rName) { const idx = teams.findIndex(t => t.name === rName); if (idx >= 0) document.getElementById("r_teamSelect").value = String(idx); }
+    document.getElementById("r_bg").value = localStorage.getItem("team2BgColor") || "";
+    document.getElementById("r_timeouts").value = localStorage.getItem("team2Timeouts") || "2";
+    document.getElementById("r_setDisplay").textContent = localStorage.getItem("team2Sets") || "0";
+
+    const serving = localStorage.getItem('servingTeam');
+    document.getElementById('serveLeft').checked  = serving === 'team1';
+    document.getElementById('serveRight').checked = serving === 'team2';
+    document.getElementById('serveBadge').textContent = serving ? serving.toUpperCase() : '—';
+
+    document.getElementById('setInfoInput').value = localStorage.getItem('setInfo') || '';
+    document.getElementById('setDisplay').textContent = localStorage.getItem('setNumber') || '1';
+
+    const v = parseInt(localStorage.getItem('setInfoRotateSec') || '20', 10);
+    document.getElementById('rotateSec').value = String(v);
+    document.getElementById('rotateSecDisplay').textContent = v + 's';
+
+    updateCenterReadout();
+  }
+  function ensureDistinct(changed) {
+    const lSel = document.getElementById("l_teamSelect");
+    const rSel = document.getElementById("r_teamSelect");
+    if (lSel.value !== rSel.value) return;
+    if (changed === 'left') {
+      rSel.value = String((parseInt(rSel.value || "0",10) + 1) % teams.length);
+      pushRightTeamToStorage();
+    } else {
+      lSel.value = String((parseInt(lSel.value || "0",10) + 1) % teams.length);
+      pushLeftTeamToStorage();
+    }
+  }
+  function computeSetStatus(name1, name2, s1, s2){
+    if (s1 === 0 && s2 === 0) return { score:`0 – 0`, status:`—` };
+    if (s1 === 3 || s2 === 3){
+      const winner = s1 === 3 ? (name1 || 'Team 1') : (name2 || 'Team 2');
+      return { score:`${s1} – ${s2}`, status:`${winner} Wins ${s1} – ${s2}` };
+    }
+    if (s1 === s2) return { score:`${s1} – ${s2}`, status:`Match tied ${s1} – ${s2}` };
+    const leader = s1 > s2 ? (name1 || 'Team 1') : (name2 || 'Team 2');
+    return { score:`${s1} – ${s2}`, status:`${leader} leads ${s1} – ${s2}` };
+  }
+  function updateCenterReadout(){
+    const name1 = localStorage.getItem('team1Name') || 'Team 1';
+    const name2 = localStorage.getItem('team2Name') || 'Team 2';
+    const s1 = parseInt(localStorage.getItem('team1Sets') || '0', 10);
+    const s2 = parseInt(localStorage.getItem('team2Sets') || '0', 10);
+    const { score, status } = computeSetStatus(name1, name2, s1, s2);
+    document.getElementById('readoutScore').textContent = score;
+    document.getElementById('readoutStatus').textContent = status;
+  }
+  function setServe(team){
+    localStorage.setItem('servingTeam', team);
+    document.getElementById('serveLeft').checked  = team === 'team1';
+    document.getElementById('serveRight').checked = team === 'team2';
+    document.getElementById('serveBadge').textContent = team.toUpperCase();
+  }
+  function sideOut(){ setServe(localStorage.getItem('servingTeam') === 'team1' ? 'team2' : 'team1'); }
+  function changeScore(key, delta){
+    let current = parseInt(localStorage.getItem(key) || '0', 10);
+    let updated = Math.max(0, current + delta);
+    localStorage.setItem(key, updated);
+    if (delta > 0){
+      if (key === 'team1Score') setServe('team1'); else if (key === 'team2Score') setServe('team2');
+    }
+  }
+  function changeSetScore(team, delta){
+    let s1 = parseInt(localStorage.getItem('team1Sets') || '0', 10);
+    let s2 = parseInt(localStorage.getItem('team2Sets') || '0', 10);
+    if (delta > 0){
+      if (s1 + s2 >= 5) return;
+      if (team === 'team1' && s1 < 3) s1++;
+      if (team === 'team2' && s2 < 3) s2++;
+    } else if (delta < 0){
+      if (team === 'team1') s1 = Math.max(0, s1 - 1);
+      if (team === 'team2') s2 = Math.max(0, s2 - 1);
+    }
+    localStorage.setItem('team1Sets', String(s1));
+    localStorage.setItem('team2Sets', String(s2));
+    document.getElementById('l_setDisplay').textContent = String(s1);
+    document.getElementById('r_setDisplay').textContent = String(s2);
+    updateCenterReadout();
+  }
+  function changeSet(delta){
+    let current = parseInt(localStorage.getItem('setNumber') || '1', 10);
+    let updated = Math.min(5, Math.max(1, current + delta));
+    localStorage.setItem('setNumber', updated);
+    document.getElementById('setDisplay').textContent = updated;
+  }
+  function triggerTeamTimeout(team, seconds){
+    localStorage.removeItem('technicalTimeoutUntil');
+    const until = Date.now() + (seconds * 1000);
+    if (team === 'team1'){
+      localStorage.setItem('timeoutTeam1Until', String(until));
+      localStorage.removeItem('timeoutTeam2Until');
+      if (seconds === 30){
+        let rem = parseInt(localStorage.getItem('team1Timeouts') || '2', 10);
+        rem = Math.max(0, rem - 1);
+        localStorage.setItem('team1Timeouts', String(rem));
+        document.getElementById('l_timeouts').value = String(rem);
+      }
+    } else {
+      localStorage.setItem('timeoutTeam2Until', String(until));
+      localStorage.removeItem('timeoutTeam1Until');
+      if (seconds === 30){
+        let rem = parseInt(localStorage.getItem('team2Timeouts') || '2', 10);
+        rem = Math.max(0, rem - 1);
+        localStorage.setItem('team2Timeouts', String(rem));
+        document.getElementById('r_timeouts').value = String(rem);
+      }
+    }
+  }
+  function cancelTeamTimeout(team){
+    if (team === 'team1') localStorage.removeItem('timeoutTeam1Until');
+    else localStorage.removeItem('timeoutTeam2Until');
+  }
+  function startTechnicalTimeout(){
+    localStorage.removeItem('timeoutTeam1Until');
+    localStorage.removeItem('timeoutTeam2Until');
+    const len = Math.max(5, parseInt(document.getElementById('techLen').value || '60', 10));
+    const until = Date.now() + (len * 1000);
+    localStorage.setItem('technicalTimeoutUntil', String(until));
+  }
+  function cancelTechnicalTimeout(){ localStorage.removeItem('technicalTimeoutUntil'); }
+  function updateScoreboard(){
+    pushLeftTeamToStorage();
+    pushRightTeamToStorage();
+    localStorage.setItem("setInfo", document.getElementById("setInfoInput").value);
+    updateCenterReadout();
+  }
+  function resetScoreboard(){
+    if (!confirm("Reset scoreboard?")) return;
+    const keep = { team1Bg: localStorage.getItem('team1BgColor'), team2Bg: localStorage.getItem('team2BgColor') };
+    localStorage.clear();
+    localStorage.setItem('team1Score','0'); localStorage.setItem('team2Score','0');
+    localStorage.setItem('team1Sets','0');  localStorage.setItem('team2Sets','0');
+    localStorage.setItem('team1Timeouts','2'); localStorage.setItem('team2Timeouts','2');
+    localStorage.setItem('setNumber','1');
+    if (keep.team1Bg) localStorage.setItem('team1BgColor', keep.team1Bg);
+    if (keep.team2Bg) localStorage.setItem('team2BgColor', keep.team2Bg);
+    cancelTechnicalTimeout();
+    localStorage.removeItem('timeoutTeam1Until'); localStorage.removeItem('timeoutTeam2Until');
+    renderStorageToUI();
+  }
+  function swapSides(){
+    const keys = [
+      ['team1Name','team2Name'],['team1Flag','team2Flag'],['team1BgColor','team2BgColor'],
+      ['team1Score','team2Score'],['team1Timeouts','team2Timeouts'],
+      ['timeoutTeam1Until','timeoutTeam2Until'],['team1Sets','team2Sets']
+    ];
+    keys.forEach(([a,b])=>{
+      const av = localStorage.getItem(a), bv = localStorage.getItem(b);
+      if (av===null && bv===null) return;
+      localStorage.setItem(a, bv ?? ''); localStorage.setItem(b, av ?? '');
+    });
+    const serving = localStorage.getItem('servingTeam');
+    if (serving === 'team1') setServe('team2'); else if (serving === 'team2') setServe('team1');
+
+    const lSel = document.getElementById("l_teamSelect"), rSel = document.getElementById("r_teamSelect");
+    const tmpIdx = lSel.value; lSel.value = rSel.value; rSel.value = tmpIdx;
+
+    const lBg = document.getElementById("l_bg"), rBg = document.getElementById("r_bg");
+    const lTO = document.getElementById("l_timeouts"), rTO = document.getElementById("r_timeouts");
+    const lSetDisp = document.getElementById("l_setDisplay"), rSetDisp = document.getElementById("r_setDisplay");
+    const tmpBg = lBg.value; lBg.value = rBg.value; rBg.value = tmpBg;
+    const tmpTo = lTO.value; lTO.value = rTO.value; rTO.value = tmpTo;
+    const tmpSs = lSetDisp.textContent; lSetDisp.textContent = rSetDisp.textContent; rSetDisp.textContent = tmpSs;
+
+    updateCenterReadout();
+  }
+  function saveRotateSec(){
+    const v = Math.max(5, parseInt(document.getElementById('rotateSec').value || '20', 10));
+    localStorage.setItem('setInfoRotateSec', String(v));
+    document.getElementById('rotateSecDisplay').textContent = v + 's';
+  }
+
+  /*************** ROSTER: dual + swap + CLEAR ON NEW EXCEL ***************/
+  const R_LEFT_CH  = 'obs_roster_left';
+  const R_RIGHT_CH = 'obs_roster_right';
+  const bcLeft  = ('BroadcastChannel' in window) ? new BroadcastChannel(R_LEFT_CH)  : null;
+  const bcRight = ('BroadcastChannel' in window) ? new BroadcastChannel(R_RIGHT_CH) : null;
+
+  // Fallback LS keys per side
+  const LS_LEFT_KEY   = 'obs_roster_data_left';
+  const LS_RIGHT_KEY  = 'obs_roster_data_right';
+  const LS_LEFT_BUMP  = 'obs_roster_bump_left';
+  const LS_RIGHT_BUMP = 'obs_roster_bump_right';
+
+  let rosterWorkbook = null;
+  let rosterTeamsMap = {}; // { teamName: players[] }
+
+  const rosterExcel      = () => document.getElementById('rosterExcel');
+  const rosterTeamLeft   = () => document.getElementById('rosterTeamLeft');
+  const rosterTeamRight  = () => document.getElementById('rosterTeamRight');
+  const rosterLoadBoth   = () => document.getElementById('rosterLoadBothBtn');
+  const rosterSwapBtn    = () => document.getElementById('rosterSwapBtn');
+  const rosterMsg        = () => document.getElementById('rosterMsg');
+
+  const rNormalizeHeader = h => String(h||'').toLowerCase().replace(/\s+/g,' ').trim();
+  const rNonEmpty = r => (r||[]).some(v => String(v ?? '').trim() !== '');
+
+  function rParseSheet(ws){
+    const rows = XLSX.utils.sheet_to_json(ws, { header:1, raw:true, defval:'' });
+    let i = 0; while (i < rows.length && !rNonEmpty(rows[i])) i++;
+    const headerRow = rows[i] || [];
+    const map = {};
+    headerRow.forEach((h, idx)=>{
+      const k = rNormalizeHeader(h);
+      if (['#','no','no.','shirt','number'].includes(k)) map.shirt = idx;
+      else if (k === 'role') map.role = idx;
+      else if (k === 'last name') map.last = idx;
+      else if (k === 'first name') map.first = idx;
+      else if (k === 'shirt name') map.shirt_name = idx;
+      else if (k === 'pos' || k === 'position') map.pos = idx;
+    });
+    i++;
+    const get = (r,k) => (map[k]===undefined ? '' : (r[map[k]] ?? ''));
+    const players = [];
+    for (; i < rows.length; i++){
+      const r = rows[i] || [];
+      if (!rNonEmpty(r)) continue;
+      const p = {
+        shirt: String(get(r,'shirt')||'').trim(),
+        role:  String(get(r,'role')||'').trim(),
+        last_name:  String(get(r,'last')||'').trim(),
+        first_name: String(get(r,'first')||'').trim(),
+        shirt_name: String(get(r,'shirt_name')||'').trim(),
+        pos: String(get(r,'pos')||'').trim()
+      };
+      if (!(p.last_name || p.first_name || p.shirt_name)) continue;
+      players.push(p);
+    }
+    return players;
+  }
+
+  function buildPayload(teamName){ return { selected: teamName, teams: rosterTeamsMap }; }
+
+  function sendLeft(payload){
+    try { if (bcLeft) bcLeft.postMessage({ type:'roster:update', payload }); } catch(e){}
+    try { localStorage.setItem(LS_LEFT_KEY, JSON.stringify(payload)); localStorage.setItem(LS_LEFT_BUMP, String(Date.now())); } catch(e){}
+  }
+  function sendRight(payload){
+    try { if (bcRight) bcRight.postMessage({ type:'roster:update', payload }); } catch(e){}
+    try { localStorage.setItem(LS_RIGHT_KEY, JSON.stringify(payload)); localStorage.setItem(LS_RIGHT_BUMP, String(Date.now())); } catch(e){}
+  }
+
+  // Actively clear both roster displays when a new Excel is chosen
+  function clearDisplays(){
+    rosterTeamsMap = {};
+    const emptyPayload = { selected: '', teams: {} };
+    try { if (bcLeft)  bcLeft.postMessage({ type:'roster:update', payload: emptyPayload }); } catch(e){}
+    try { if (bcRight) bcRight.postMessage({ type:'roster:update', payload: emptyPayload }); } catch(e){}
+    try {
+      localStorage.setItem(LS_LEFT_KEY,  JSON.stringify(emptyPayload));
+      localStorage.setItem(LS_RIGHT_KEY, JSON.stringify(emptyPayload));
+      localStorage.setItem(LS_LEFT_BUMP,  String(Date.now()));
+      localStorage.setItem(LS_RIGHT_BUMP, String(Date.now()));
+    } catch(e){}
+
+    // Also clear lineup displays (see lineup section below)
+    try {
+      const emptyLineup = { team: '', lineup: {1:null,2:null,3:null,4:null,5:null,6:null} };
+      lbcLeft?.postMessage({ type:'lineup:update', payload: emptyLineup });
+      lbcRight?.postMessage({ type:'lineup:update', payload: emptyLineup });
+      localStorage.setItem(LS_LINEUP_LEFT, JSON.stringify(emptyLineup));
+      localStorage.setItem(LS_LINEUP_RIGHT, JSON.stringify(emptyLineup));
+      localStorage.setItem(LS_LINEUP_BUMP_L, String(Date.now()));
+      localStorage.setItem(LS_LINEUP_BUMP_R, String(Date.now()));
+    } catch(e){}
+  }
+
+  function validateRosterChoices(){
+    const left  = rosterTeamLeft().value;
+    const right = rosterTeamRight().value;
+    if (!left || !right || !rosterTeamsMap[left] || !rosterTeamsMap[right]){
+      rosterLoadBoth().disabled = true; rosterSwapBtn().disabled = true;
+      rosterMsg().textContent = 'Select valid teams for both sides.'; rosterMsg().className = 'error';
+      return false;
+    }
+    if (left === right){
+      rosterLoadBoth().disabled = true; rosterSwapBtn().disabled = false;
+      rosterMsg().textContent = 'Left and Right cannot be the same team.'; rosterMsg().className = 'warn';
+      return false;
+    }
+    rosterLoadBoth().disabled = false; rosterSwapBtn().disabled = false;
+    rosterMsg().textContent = 'Ready to load.'; rosterMsg().className = 'ok';
+    return true;
+  }
+
+  function swapRosterSelections(){
+    const leftSel  = rosterTeamLeft();
+    const rightSel = rosterTeamRight();
+    const tmp = leftSel.value; leftSel.value = rightSel.value; rightSel.value = tmp;
+    const ok = validateRosterChoices();
+    if (!ok) return;
+    // Auto-push after swap
+    sendLeft(buildPayload(leftSel.value));
+    sendRight(buildPayload(rightSel.value));
+    lineupRefreshFromRosters();
+  }
+
+  function wireRosterUI(){
+    rosterExcel().addEventListener('change', (e) => {
+      // 1) Immediately clear any existing rosters & lineups on the displays
+      clearDisplays();
+
+      const f = e.target.files && e.target.files[0];
+      const leftSel  = rosterTeamLeft();
+      const rightSel = rosterTeamRight();
+      // Disable UI while loading
+      leftSel.disabled = true; rightSel.disabled = true;
+      leftSel.innerHTML = '<option>Loading…</option>';
+      rightSel.innerHTML = '<option>Loading…</option>';
+      rosterLoadBoth().disabled = true; rosterSwapBtn().disabled = true;
+      rosterMsg().textContent = 'Cleared previous rosters. Loading workbook…';
+      rosterMsg().className = 'warn';
+
+      if (!f) {
+        leftSel.innerHTML = '<option>— load a file —</option>';
+        rightSel.innerHTML = '<option>— load a file —</option>';
+        rosterMsg().textContent = 'No file selected. Displays cleared.';
+        rosterMsg().className = 'warn';
+        // also refresh empty lineup UI
+        lineupRefreshFromRosters();
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          rosterWorkbook = XLSX.read(evt.target.result, { type:'array' });
+        } catch(err) {
+          console.error('Excel read error:', err);
+          alert('Could not read the Excel file.');
+          leftSel.innerHTML = '<option>— load a file —</option>';
+          rightSel.innerHTML = '<option>— load a file —</option>';
+          rosterMsg().textContent = 'Excel read failed. Displays remain cleared.';
+          rosterMsg().className = 'error';
+          lineupRefreshFromRosters();
+          return;
+        }
+
+        // 2) Overwrite team data
+        rosterTeamsMap = {};
+        (rosterWorkbook.SheetNames||[]).forEach(name=>{
+          const ws = rosterWorkbook.Sheets[name];
+          const players = rParseSheet(ws);
+          if (players.length) rosterTeamsMap[name] = players;
+        });
+
+        // 3) Populate selects
+        const names = Object.keys(rosterTeamsMap);
+        leftSel.innerHTML = ''; rightSel.innerHTML = '';
+        if (!names.length){
+          leftSel.disabled = true; rightSel.disabled = true;
+          rosterLoadBoth().disabled = true; rosterSwapBtn().disabled = true;
+          leftSel.innerHTML = '<option>No valid team sheets</option>';
+          rightSel.innerHTML = '<option>No valid team sheets</option>';
+          rosterMsg().textContent = 'No teams found in the Excel. Displays remain cleared.';
+          rosterMsg().className = 'error';
+          lineupRefreshFromRosters();
+          return;
+        }
+        names.forEach(n=>{
+          const o1 = document.createElement('option'); o1.value = n; o1.textContent = n; leftSel.appendChild(o1);
+          const o2 = document.createElement('option'); o2.value = n; o2.textContent = n; rightSel.appendChild(o2);
+        });
+        leftSel.disabled = false; rightSel.disabled = false;
+
+        // 4) Default to first and second (ensure different when possible)
+        leftSel.value  = names[0];
+        rightSel.value = names[Math.min(1, names.length - 1)];
+        if (leftSel.value === rightSel.value && names.length > 1) rightSel.value = names[1];
+
+        rosterMsg().textContent = 'Workbook loaded. Choose left/right and Load Rosters.';
+        rosterMsg().className = 'ok';
+        validateRosterChoices();
+
+        // NEW: refresh lineup options based on these teams
+        lineupRefreshFromRosters();
+      };
+      reader.readAsArrayBuffer(f);
+    });
+
+    rosterTeamLeft().addEventListener('change', ()=>{ validateRosterChoices(); lineupRefreshFromRosters(); });
+    rosterTeamRight().addEventListener('change', ()=>{ validateRosterChoices(); lineupRefreshFromRosters(); });
+    rosterSwapBtn().addEventListener('click', swapRosterSelections);
+
+    rosterLoadBoth().addEventListener('click', () => {
+      if (!validateRosterChoices()) return;
+      const leftName  = rosterTeamLeft().value;
+      const rightName = rosterTeamRight().value;
+      if (!rosterTeamsMap[leftName]?.length){ alert('Left team has no valid players.'); return; }
+      if (!rosterTeamsMap[rightName]?.length){ alert('Right team has no valid players.'); return; }
+      sendLeft(buildPayload(leftName));
+      sendRight(buildPayload(rightName));
+      // ensure lineup selectors reflect the chosen sheets
+      lineupRefreshFromRosters();
+    });
+  }
+
+  /*************** LINEUP: channels, UI, logic ***************/
+  const L_LEFT_CH   = 'obs_lineup_left';
+  const L_RIGHT_CH  = 'obs_lineup_right';
+  const lbcLeft  = ('BroadcastChannel' in window) ? new BroadcastChannel(L_LEFT_CH)  : null;
+  const lbcRight = ('BroadcastChannel' in window) ? new BroadcastChannel(L_RIGHT_CH) : null;
+  const LS_LINEUP_LEFT   = 'obs_lineup_data_left';
+  const LS_LINEUP_RIGHT  = 'obs_lineup_data_right';
+  const LS_LINEUP_BUMP_L = 'obs_lineup_bump_left';
+  const LS_LINEUP_BUMP_R = 'obs_lineup_bump_right';
+
+  // UI helpers
+  const POS_LABELS = [
+    ['1','1 (RB)'], ['2','2 (RF)'], ['3','3 (MF)'],
+    ['4','4 (LF)'], ['5','5 (LB)'], ['6','6 (MB)'],
+  ];
+  function lineupGrid(side){ return side==='left' ? document.getElementById('leftLineupGrid') : document.getElementById('rightLineupGrid'); }
+  function lineupSelectId(side, pos){ return `${side}LineupPos${pos}`; }
+  function currentTeamNameForSide(side){
+    const sheetSelId = (side==='left') ? 'rosterTeamLeft' : 'rosterTeamRight';
+    const sel = document.getElementById(sheetSelId);
+    return sel && sel.value ? sel.value : '';
+  }
+  function playersForSide(side){
+    const teamName = currentTeamNameForSide(side);
+    return teamName && rosterTeamsMap[teamName] ? rosterTeamsMap[teamName] : [];
+  }
+  function buildPlayerLabel(p){
+    const name = ((p.first_name||'') + ' ' + (p.last_name||'')).trim() || (p.shirt_name||'');
+    const role = (p.pos||p.role||'').toString().toUpperCase();
+    return `${p.shirt||''} — ${name} ${role ? '('+role+')' : ''}`.trim();
+  }
+
+  function lineupRenderSide(side){
+    const grid = lineupGrid(side);
+    grid.innerHTML = '';
+    POS_LABELS.forEach(([k,label])=>{
+      const wrap = document.createElement('div');
+      wrap.style.flex = '1 1 180px';
+      wrap.innerHTML = `
+        <label style="display:block; font-weight:700; margin-bottom:4px;">${label}</label>
+        <select id="${lineupSelectId(side,k)}" data-pos="${k}" disabled>
+          <option value="">— choose —</option>
+        </select>
+      `;
+      grid.appendChild(wrap);
+    });
+  }
+  function lineupPopulateOptions(side){
+    const list = playersForSide(side);
+    const selects = POS_LABELS.map(([k]) => document.getElementById(lineupSelectId(side,k)));
+    selects.forEach(sel=>{
+      sel.innerHTML = `<option value="">— choose —</option>`;
+      list.forEach((p, idx)=>{
+        const opt = document.createElement('option');
+        opt.value = String(idx);
+        opt.textContent = buildPlayerLabel(p);
+        sel.appendChild(opt);
+      });
+      sel.disabled = list.length === 0;
+    });
+    const en = list.length > 0;
+    document.getElementById(side==='left' ? 'lineupAutoLeft' : 'lineupAutoRight').disabled = !en;
+    document.getElementById(side==='left' ? 'lineupClearLeft' : 'lineupClearRight').disabled = !en;
+    document.getElementById('lineupLoadBothBtn').disabled = !(playersForSide('left').length && playersForSide('right').length);
+  }
+  function lineupWireDedup(side){
+    const selects = POS_LABELS.map(([k]) => document.getElementById(lineupSelectId(side,k)));
+    selects.forEach(sel=>{
+      sel.addEventListener('change', ()=>{
+        const chosenValues = new Set(selects.map(s=>s.value).filter(v=>v!==''));
+        selects.forEach(s=>{
+          Array.from(s.options).forEach(opt=>{
+            if (!opt.value) return;
+            opt.disabled = chosenValues.has(opt.value) && s.value !== opt.value;
+          });
+        });
+      });
+    });
+  }
+  function lineupClear(side){
+    POS_LABELS.forEach(([k])=>{
+      const sel = document.getElementById(lineupSelectId(side,k));
+      if (sel) sel.value = '';
+    });
+    lineupPopulateOptions(side);
+    lineupWireDedup(side);
+  }
+  function lineupAutoFill(side){
+    const list = playersForSide(side);
+    POS_LABELS.forEach(([k], idx)=>{
+      const sel = document.getElementById(lineupSelectId(side,k));
+      if (!sel) return;
+      const optIdx = (idx < list.length) ? String(idx) : '';
+      sel.value = optIdx;
+    });
+    // trigger dedup recalculation
+    const selects = POS_LABELS.map(([k]) => document.getElementById(lineupSelectId(side,k)));
+    selects.forEach(s => s.dispatchEvent(new Event('change')));
+  }
+  function lineupSerialize(side){
+    const teamName = currentTeamNameForSide(side);
+    const list = playersForSide(side);
+    const lineup = {};
+    let validCount = 0;
+    POS_LABELS.forEach(([k])=>{
+      const sel = document.getElementById(lineupSelectId(side,k));
+      if (sel && sel.value !== ''){
+        const p = list[parseInt(sel.value,10)];
+        if (p){ lineup[k] = p; validCount++; }
+      } else {
+        lineup[k] = null;
+      }
+    });
+    return { team: teamName, lineup, count: validCount };
+  }
+  function lineupSend(side, payload){
+    const msg = { type:'lineup:update', payload };
+    try { (side==='left' ? lbcLeft : lbcRight)?.postMessage(msg); } catch(e){}
+    const key = side==='left' ? LS_LINEUP_LEFT : LS_LINEUP_RIGHT;
+    const bump= side==='left' ? LS_LINEUP_BUMP_L : LS_LINEUP_BUMP_R;
+    try {
+      localStorage.setItem(key, JSON.stringify(payload));
+      localStorage.setItem(bump, String(Date.now()));
+    } catch(e){}
+  }
+  function lineupInitUI(){
+    lineupRenderSide('left');
+    lineupRenderSide('right');
+
+    document.getElementById('lineupAutoLeft').addEventListener('click', ()=>{ lineupAutoFill('left'); });
+    document.getElementById('lineupAutoRight').addEventListener('click', ()=>{ lineupAutoFill('right'); });
+    document.getElementById('lineupClearLeft').addEventListener('click', ()=>{ lineupClear('left'); });
+    document.getElementById('lineupClearRight').addEventListener('click', ()=>{ lineupClear('right'); });
+
+    document.getElementById('lineupLoadBothBtn').addEventListener('click', ()=>{
+      const L = lineupSerialize('left');
+      const R = lineupSerialize('right');
+      if (L.count < 6 || R.count < 6){
+        alert('Please select 6 starters for both Left and Right.');
+        return;
+      }
+      lineupSend('left',  { team: L.team,  lineup: L.lineup });
+      lineupSend('right', { team: R.team, lineup: R.lineup });
+    });
+  }
+  function lineupRefreshFromRosters(){
+    lineupPopulateOptions('left');
+    lineupPopulateOptions('right');
+    lineupWireDedup('left');
+    lineupWireDedup('right');
+  }
+
+  /*************** Reset Team Points ***************/
+  function resetTeamPoints(lsKey){
+    if (!confirm('Reset this team’s points to 0?')) return;
+    localStorage.setItem(lsKey, '0');
+    // Optional: keep serving side unchanged
+    // Scoreboard will auto-pick up from localStorage
+  }
+
+  /*************** Scale / Boot ***************/
+  const uiScaleInput = document.getElementById('uiScale');
+  const uiScaleOut = document.getElementById('uiScaleOut');
+  uiScaleInput.addEventListener('input', ()=>{
+    const v = parseFloat(uiScaleInput.value || '1');
+    document.documentElement.style.setProperty('--ui-scale', v.toFixed(2));
+    uiScaleOut.textContent = v.toFixed(2) + '×';
+  });
+
+  window.addEventListener("load", ()=>{
+    if (localStorage.getItem('team1Sets') === null) localStorage.setItem('team1Sets','0');
+    if (localStorage.getItem('team2Sets') === null) localStorage.setItem('team2Sets','0');
+
+    populateTeamDropdowns();
+    renderStorageToUI();
+
+    document.getElementById("l_teamSelect").addEventListener("change", ()=>{
+      pushLeftTeamToStorage(); ensureDistinct('left'); updateCenterReadout();
+    });
+    document.getElementById("r_teamSelect").addEventListener("change", ()=>{
+      pushRightTeamToStorage(); ensureDistinct('right'); updateCenterReadout();
+    });
+
+    document.getElementById("l_bg").addEventListener("input", e=>{
+      if (e.target.value.trim()) localStorage.setItem("team1BgColor", e.target.value.trim());
+    });
+    document.getElementById("r_bg").addEventListener("input", e=>{
+      if (e.target.value.trim()) localStorage.setItem("team2BgColor", e.target.value.trim());
+    });
+
+    document.getElementById("l_timeouts").addEventListener("change", e=>{
+      localStorage.setItem("team1Timeouts", e.target.value);
+    });
+    document.getElementById("r_timeouts").addEventListener("change", e=>{
+      localStorage.setItem("team2Timeouts", e.target.value);
+    });
+
+    document.getElementById("serveLeft").addEventListener("change", ()=> setServe('team1'));
+    document.getElementById("serveRight").addEventListener("change", ()=> setServe('team2'));
+
+    window.addEventListener("storage", (ev)=>{
+      if (['setNumber','team1Name','team2Name','servingTeam','team1Sets','team2Sets','team1Timeouts','team2Timeouts','setInfoRotateSec'].includes(ev.key)) {
+        renderStorageToUI();
+      }
+    });
+
+    // Roster & Lineup UI
+    wireRosterUI();
+    lineupInitUI();
+    lineupRefreshFromRosters(); // in case there is preloaded roster
+  });
+</script>
+</body>
+</html>

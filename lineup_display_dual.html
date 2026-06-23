@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>OBS Lineup Display (Dual Side)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{
+      --bg1:#05164f; --bg2:#0c2e91; --court:#0b1f66; --line:#6ea8fe;
+      --tile:#1436b6; --tile2:#0f2a93;
+      --text:#ffffff; --muted:rgba(255,255,255,.8);
+      --accent:#ff6c54; --num:#0a1f8a;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; color:var(--text);
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+
+      /* Animated gradient */
+      background: linear-gradient(135deg, var(--bg1), var(--bg2),  #1a237e, #283593, #4554f8, #a7adf0);
+      background-size: 400% 400%;
+      animation: bgShift 40s ease infinite;
+    }
+    @keyframes bgShift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    .wrap{ padding:24px; height:100%; display:flex; flex-direction:column; }
+    .title{
+      margin:0; text-align:center; text-transform:uppercase; letter-spacing:.6px;
+      font-size:28px; font-weight:900;
+      margin-bottom: 20px;
+    }
+    .court{
+      flex:1 1 auto; max-width:980px; margin:0 auto;
+      background: var(--court); border-radius:16px; padding:14px;
+      box-shadow: inset 0 0 0 3px var(--line), inset 0 0 0 8px rgba(255,255,255,.06);
+      display:grid; grid-template-rows: 1fr 1fr; gap:12px;
+    }
+    .row{ display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; }
+    .pos{
+      background: linear-gradient(180deg, var(--tile), var(--tile2));
+      border-radius:12px; display:flex; align-items:center; justify-content:center; padding:8px;
+      position:relative; overflow:hidden; min-height:120px;
+      box-shadow: inset 0 -2px 0 rgba(0,0,0,.18);
+    }
+    .pos::after{
+      content: attr(data-pos);
+      position:absolute; top:6px; left:8px; font-weight:900; font-size:12px; color:var(--muted);
+      background: rgba(255,255,255,.06); padding:3px 6px; border-radius:6px;
+    }
+    .card{ display:flex; align-items:flex-start; gap:10px; width:100%; max-width:90%; }
+    .shirt{
+      min-width:50px; text-align:center; background:var(--num); color:#fff; border-radius:10px;
+      padding:10px 10px; font-weight:900; font-size:18px; letter-spacing:.4px;
+      box-shadow: inset 0 -2px 0 rgba(0,0,0,.2);
+    }
+    .who{ display:flex; flex-direction:column; gap:4px; min-width:0; flex:1 1 auto; }
+    .name{
+      font-weight:900; text-transform:uppercase;
+      white-space: normal; line-height:1.15;
+      overflow-wrap: anywhere; word-break: break-word;
+    }
+    .meta{
+      font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.3px;
+      white-space: nowrap;
+    }
+    .libero .shirt{ background: #222; outline: 2px solid #fff; }
+    .pos .empty{ opacity:.4; font-weight:700; }
+    @media (max-width: 700px){
+      .pos{ min-height:100px }
+      .shirt{ min-width:44px; font-size:16px; padding:8px 8px; }
+      .title{ font-size:22px }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1 class="title" id="teamName">TEAM STARTING SIX</h1>
+    <div class="court" id="court">
+      <div class="row">
+        <div class="pos" id="pos4" data-pos="4 (LF)"></div>
+        <div class="pos" id="pos3" data-pos="3 (MF)"></div>
+        <div class="pos" id="pos2" data-pos="2 (RF)"></div>
+      </div>
+      <div class="row">
+        <div class="pos" id="pos5" data-pos="5 (LB)"></div>
+        <div class="pos" id="pos6" data-pos="6 (MB)"></div>
+        <div class="pos" id="pos1" data-pos="1 (RB)"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const SIDE = (params.get('side') || 'left').toLowerCase() === 'right' ? 'right' : 'left';
+    const CHANNEL = SIDE === 'right' ? 'obs_lineup_right' : 'obs_lineup_left';
+    const LS_KEY  = SIDE === 'right' ? 'obs_lineup_data_right'  : 'obs_lineup_data_left';
+    const LS_BUMP = SIDE === 'right' ? 'obs_lineup_bump_right' : 'obs_lineup_bump_left';
+    const bc = ('BroadcastChannel' in window) ? new BroadcastChannel(CHANNEL) : null;
+
+    function fullName(p){
+      const f = (p.first_name||'').trim(), l = (p.last_name||'').trim();
+      return (f || l) ? (f + ' ' + l).trim() : (p.shirt_name||'').trim();
+    }
+    function tileHTML(p){
+      if (!p) return `<div class="empty">—</div>`;
+      const isLibero = /libero|^l$|\blib\b/i.test(p.role||'');
+      return `
+        <div class="card ${isLibero ? 'libero' : ''}">
+          <div class="shirt">${p.shirt||''}</div>
+          <div class="who">
+            <div class="name">${fullName(p).toUpperCase()}</div>
+            <div class="meta">${(p.pos||p.role||'').toString().toUpperCase()}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function render(payload){
+      if (!payload || !payload.team || !payload.lineup) return;
+      document.getElementById('teamName').textContent = (payload.team + ' STARTING SIX').toUpperCase();
+      ['1','2','3','4','5','6'].forEach(k=>{
+        const el = document.getElementById('pos'+k);
+        el.innerHTML = tileHTML(payload.lineup[k]);
+      });
+    }
+
+    function readLS(){
+      try { const raw = localStorage.getItem(LS_KEY); return raw ? JSON.parse(raw) : null; }
+      catch { return null; }
+    }
+
+    const initial = readLS();
+    if (initial) render(initial);
+
+    if (bc) {
+      bc.onmessage = (ev) => {
+        if (ev?.data?.type === 'lineup:update') render(ev.data.payload);
+      };
+    }
+
+    let lastBump = null;
+    setInterval(()=>{
+      const bump = localStorage.getItem(LS_BUMP);
+      if (bump && bump !== lastBump) {
+        lastBump = bump;
+        const payload = readLS();
+        if (payload) render(payload);
+      }
+    }, 1000);
+  </script>
+</body>
+</html>
