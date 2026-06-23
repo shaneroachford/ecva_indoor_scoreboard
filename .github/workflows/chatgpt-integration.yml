@@ -1,33 +1,41 @@
-name: ChatGPT Integration
+name: ChatGPT Repo Check
 
 on:
-  workflow_dispatch:
   push:
     branches:
       - main
-
-permissions:
-  contents: read
-  pull-requests: write
+  workflow_dispatch:
 
 jobs:
   chatgpt:
     runs-on: ubuntu-latest
-    env:
-      # Store your OpenAI API key in the repository secrets as OPENAI_API_KEY
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
     steps:
-      - name: Checkout
+      - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: ChatGPT Integration
-        uses: kxxt/chatgpt-action@v0.3
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          openai_api_key: ${{ secrets.OPENAI_API_KEY }}
-          # Change the model and prompt to suit your needs
-          model: gpt-4o
-          prompt: |
-            You are a helpful assistant. Summarize the repository changes in this run and suggest any improvements or potential risks.
+          python-version: '3.11'
+
+      - name: Install OpenAI SDK
+        run: pip install openai
+
+      - name: Run ChatGPT check
         env:
-          # Use the automatically-provided GITHUB_TOKEN for any repo write operations
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python - <<'PY'
+          from openai import OpenAI
+          import os
+
+          client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+
+          response = client.responses.create(
+              model="gpt-4.1-mini",
+              input="Review this ECVA indoor scoreboard repo at a high level and suggest next improvement steps."
+          )
+
+          print(response.output_text)
+          PY
