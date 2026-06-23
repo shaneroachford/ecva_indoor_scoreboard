@@ -5,435 +5,157 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Volleyball Scoreboard</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f0f0f0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 20px;
+    body { /* compact page container for OBS */
+      margin:0; padding:12px; background: #0b0b12; color:#fff; font-family: Inter, Arial, sans-serif;
+      display:flex; align-items:center; justify-content:center; min-height:100vh;
     }
     .scoreboard {
-      display: flex;
-      justify-content: space-between;
-      width: 900px;                  /* wider to fit long names */
-      background: #222;
-      color: white;
-      border-radius: 0;
-      overflow: hidden;
-      margin-bottom: 10px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-     height: 60px; align-items: center; }
-    .team {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 4px 12px;             /* slightly smaller height */
-      gap: 12px;
-      position: relative;
-      transition: background-color 0.2s ease;
-      min-height: 60px;              /* shorter row */
+      display:flex; gap:12px; width:980px; max-width:100%; align-items:center;
+      background: linear-gradient(180deg,#0f1230,#0b0e29); border-radius:10px; padding:8px 12px;
+      box-shadow: 0 8px 30px rgba(4,6,20,0.8);
+      height: 68px; align-items: center;
     }
+    .team { flex:1; display:flex; align-items:center; gap:12px; padding:8px; min-height:64px; position:relative; }
 
-    /* Serve bar vertical on edges with pulse animation 
-    .serve-bar {
-      position: absolute;
-      top: 0;
-      width: 8px;
-      height: 100%;
-      background: #ff7a00;           orange
-      opacity: 0;                    hidden by default 
-      pointer-events: none;
-    }
-    .serve-bar.left  { left: 0;  border-top-right-radius: 4px; border-bottom-right-radius: 4px; }
-    .serve-bar.right { right: 0; border-top-left-radius: 4px;  border-bottom-left-radius: 4px; }
+    /* Optional serve bar (vertical) */
+    .serve-bar { position:absolute; top:6px; bottom:6px; width:8px; border-radius:6px; opacity:0.85; }
+    .serve-bar.left { left:6px; }
+    .serve-bar.right { right:6px; }
 
-    @keyframes pulseFade {
-      0% { opacity: .35; }
-      50% { opacity: 1; }
-      100% { opacity: .35; }
-    }
-    .serve-bar.active {
-      animation: pulseFade 1.2s ease-in-out infinite;
-    }*/
+    .flag-wrap{ display:flex; align-items:center; gap:8px; min-width:110px }
+    .flag-wrap img{ height:60px; width:auto; display:block }
+    .serve-icon img{ height:28px; width:auto; display:block }
 
-    /* Serve icon sits to the right of the flag */
-    .flag-wrap { display: flex; align-items: center; gap: 6px; min-width: 110px; }
-    .serve-icon {
-      display: none;           /* toggled by JS */
-      line-height: 0;
-      opacity: 0.95;
-    }
-    .team img { width: 75px; height: auto; }
-    .serve-icon img { width: 25px; height: auto; display: block; }
-    /* Inherit contrasting color for icon just like text */
+    .team-name{ flex:1; text-align:center; font-weight:800; font-size:1.05rem; line-height:1.05; word-break:break-word }
+    .score-timeout{ display:flex; gap:12px; align-items:center }
+    .score{ font-weight:900; font-size:2.4rem; min-width:56px; text-align:right; }
+    .timeouts{ display:flex; flex-direction:column; gap:6px }
+    .dot{ width:12px; height:12px; border-radius:50% }
 
-    /* Reserve space for flag area and prevent layout shifts */
-    .flag-wrap {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      min-width: 95px;               /* keeps width consistent */
-    }
-    .team img { width: 75px; height: auto; }
-    .serve-icon img { width: 25px; height: auto; display: block; }
-    .team-name {
-      flex-grow: 1;
-      text-align: center;
-      font-size: 1.15rem;
-      font-weight: bold;
-      line-height: 1.15;
-      word-break: break-word;        /* wrap for very long names */
-    }
-    .score { font-size: 2.3rem; font-weight: bold; min-width: 56px; text-align: right; }
-
-    .score-timeout { display: flex; flex-direction: row; align-items: center; gap: 10px; }
-    .timeouts { display: flex; flex-direction: column; gap: 6px; }
-    .dot { width: 12px; height: 12px; border-radius: 50%; }
-
-    .set-info-bar {
-      width: 900px;                  /* match scoreboard width */
-      display: flex;
-      background-color: black;
-      color: white;
-      font-size: 1.1rem;
-      font-weight: bold;
-      border-radius: 0;
-      overflow: hidden;
-    }
-    .set-number { width: 120px; padding: 10px; text-align: center; border-right: 2px solid #444; }
-    .set-info { flex-grow: 1; padding: 10px; text-align: center; min-height: 24px; }
-    /*Ensure wrapping for very long names in the info bar*/
-    .set-info { white-space: normal; word-break: break-word; }
-  
-    #flag1, #flag2 { height: 60px; width: auto; display: block; }
+    .set-info-bar{ width:980px; max-width:100%; margin-top:8px; display:flex; background:#050517; border-radius:8px; overflow:hidden }
+    .set-number{ width:140px; padding:10px; text-align:center; border-right:2px solid rgba(255,255,255,0.04); }
+    .set-info{ flex:1; padding:10px; text-align:center; }
 
     /* ===== Score change motion (roll up / roll down) ===== */
-    
-      to   { transform: translateY(0);    opacity: 1;   }
-    }
-    
-      to   { transform: translateY(0);      opacity: 1;   }
-    }
-    .score { position: relative; overflow: hidden; }
-    
-    
+    .score { position:relative; overflow:hidden; }
+    .score .slot { display:block; transform: translateY(0); transition: transform 220ms ease, opacity 220ms ease; }
+    .score.anim-up .slot { transform: translateY(-20%); opacity:0.0 }
+    .score.anim-down .slot { transform: translateY(20%); opacity:0.0 }
 
-  
     /* ===== Score change color flash ===== */
     .score { transition: color 180ms ease, text-shadow 180ms ease; }
-    .flash-up   { color: #2ee66b; text-shadow: 0 0 6px rgba(46,230,107,0.8); }
-    .flash-down { color: #ff5a5a; text-shadow: 0 0 6px rgba(255,90,90,0.8); }
+    .flash-up   { color: #2ee66b; text-shadow: 0 0 8px rgba(46,230,107,0.85); }
+    .flash-down { color: #ff5a5a; text-shadow: 0 0 8px rgba(255,90,90,0.85); }
 
-  
     /* ===== Score pop on increase ===== */
-    @keyframes popUp {
-  0%   { transform: scale(1); }
-  50%  { transform: scale(1.12); }
-  70%  { transform: scale(0.98); }
-  100% { transform: scale(1); }
-}
-  50%  { transform: scale(1.1); }
-  100% { transform: scale(1); }
-}
-  50%  { transform: scale(1.1); }
-  100% { transform: scale(1); }
-}
-      50%  { transform: scale(1.08); }
-      100% { transform: scale(1); }
-    }
-    .score { will-change: transform, color, text-shadow; }
+    @keyframes popUp { 0%{ transform:scale(1) } 50%{ transform:scale(1.12) } 70%{ transform:scale(0.98) } 100%{ transform:scale(1) } }
     .score.pop-up { animation: popUp 320ms ease-out; }
 
-  
     /* ===== Score shrink on decrease ===== */
-    @keyframes shrinkDown {
-  0%   { transform: scale(1); }
-  50%  { transform: scale(0.9); }
-  70%  { transform: scale(1.05); }
-  100% { transform: scale(1); }
-}
-      50%  { transform: scale(0.92); }
-      100% { transform: scale(1); }
-    }
+    @keyframes shrinkDown { 0%{ transform:scale(1) } 50%{ transform:scale(0.9) } 70%{ transform:scale(1.05) } 100%{ transform:scale(1) } }
     .score.shrink-down { animation: shrinkDown 320ms ease-out; }
-
   </style>
 </head>
 <body>
-  <div class="scoreboard">
-    <!-- LEFT / TEAM 1 -->
-    <div class="team" id="team1">
-      <!-- Serve bar on LEFT edge 
-      <div class="serve-bar left" id="serveBar1"></div>-->
-
-      <!-- Flag -->
-      <div class="flag-wrap">
-        <img id="flag1" src="" alt="Team 1 Flag" />
-        <!-- NEW: serve icon -->
-        <span class="serve-icon" id="serveIcon1" aria-hidden="true" title="Serving">  <img src="icons/volleyball.png" alt="Serving" /></span>
+  <div style="display:flex; flex-direction:column; align-items:center; gap:8px; width:100%">
+    <div class="scoreboard">
+      <div class="team" id="team1">
+        <div class="serve-bar left" id="serveBar1" style="background:linear-gradient(180deg,#ffd27a,#ff8a4f); display:none"></div>
+        <div class="flag-wrap"><img id="flag1" src="" alt="Team 1 Flag" /><span class="serve-icon" id="serveIcon1" style="display:none"><img src="icons/volleyball.png" alt="Serving"/></span></div>
+        <div class="team-name" id="name1">Team 1</div>
+        <div class="score-timeout">
+          <div class="score" id="score1"><span class="slot">0</span></div>
+          <div class="timeouts" id="timeouts1"><div class="dot" id="t1_1"></div><div class="dot" id="t1_2"></div></div>
+        </div>
       </div>
 
-      <div class="team-name" id="name1">Team 1</div>
-      <div class="score-timeout">
-        <div class="score" id="score1">0</div>
-        <div class="timeouts" id="timeouts1">
-          <div class="dot" id="t1_1"></div>
-          <div class="dot" id="t1_2"></div>
+      <div class="team" id="team2">
+        <div class="serve-bar right" id="serveBar2" style="background:linear-gradient(180deg,#ffd27a,#ff8a4f); display:none"></div>
+        <div class="flag-wrap"><img id="flag2" src="" alt="Team 2 Flag" /><span class="serve-icon" id="serveIcon2" style="display:none"><img src="icons/volleyball.png" alt="Serving"/></span></div>
+        <div class="team-name" id="name2">Team 2</div>
+        <div class="score-timeout">
+          <div class="score" id="score2"><span class="slot">0</span></div>
+          <div class="timeouts" id="timeouts2"><div class="dot" id="t2_1"></div><div class="dot" id="t2_2"></div></div>
         </div>
       </div>
     </div>
 
-    <!-- RIGHT / TEAM 2 -->
-    <div class="team" id="team2">
-      <!-- Serve bar on RIGHT edge 
-      <div class="serve-bar right" id="serveBar2"></div>-->
-
-      <!-- Flag -->
-      <div class="flag-wrap">
-        <img id="flag2" src="" alt="Team 2 Flag" />
-        <!-- NEW: serve icon -->
-        <span class="serve-icon" id="serveIcon2" aria-hidden="true" title="Serving">  <img src="icons/volleyball.png" alt="Serving" /></span>
-      </div>
-
-      <div class="team-name" id="name2">Team 2</div>
-      <div class="score-timeout">
-        <div class="score" id="score2">0</div>
-        <div class="timeouts" id="timeouts2">
-          <div class="dot" id="t2_1"></div>
-          <div class="dot" id="t2_2"></div>
-        </div>
-      </div>
+    <div class="set-info-bar">
+      <div class="set-number" id="setNumber">SET 1</div>
+      <div class="set-info" id="setInfo"> </div>
     </div>
   </div>
 
-  <div class="set-info-bar">
-    <div class="set-number" id="setNumber">SET 1</div>
-    <div class="set-info" id="setInfo"> </div>
-  </div>
+  <script>
+    // previous-score guards
+    window._prevInitDone = false;
+    window._prevS1 = null; window._prevS2 = null;
 
-<script>
-  
-  // Initialize previous score cache to avoid first-run animations
-window._prevInitDone = false;
-window._prevS1 = null; window._prevS2 = null;
-// ===== Score animation helpers =====
-  function triggerShrink(el) {
-  try {
-    el.classList.remove('shrink-down');
-    void el.offsetWidth;
-    el.classList.add('shrink-down');
-    clearTimeout(el._shrinkTO);
-    el._shrinkTO = setTimeout(() => { el.classList.remove('shrink-down'); }, 320);
-  } catch(e) {}
-}
+    function triggerShrink(el){ try{ el.classList.remove('shrink-down'); void el.offsetWidth; el.classList.add('shrink-down'); clearTimeout(el._shrinkTO); el._shrinkTO = setTimeout(()=>el.classList.remove('shrink-down'),320); }catch(e){} }
+    function triggerPop(el){ try{ el.classList.remove('pop-up'); void el.offsetWidth; el.classList.add('pop-up'); clearTimeout(el._popTO); el._popTO = setTimeout(()=>el.classList.remove('pop-up'),220); }catch(e){} }
+    function triggerFlash(el,cls){ try{ el.classList.remove('flash-up','flash-down'); void el.offsetWidth; el.classList.add(cls); clearTimeout(el._flashTO); el._flashTO = setTimeout(()=>el.classList.remove(cls),220); }catch(e){} }
 
-function triggerPop(el) {
-  try {
-    el.classList.remove('pop-up');
-    void el.offsetWidth; // reflow
-    el.classList.add('pop-up');
-    clearTimeout(el._popTO);
-    el._popTO = setTimeout(() => { el.classList.remove('pop-up'); }, 220);
-  } catch(e) {}
-}
+    function updateFromStorage(){
+      document.getElementById('flag1').src = localStorage.getItem('team1Flag') || '';
+      document.getElementById('flag2').src = localStorage.getItem('team2Flag') || '';
+      const name1 = localStorage.getItem('team1Name') || 'Team 1';
+      const name2 = localStorage.getItem('team2Name') || 'Team 2';
+      document.getElementById('name1').textContent = name1;
+      document.getElementById('name2').textContent = name2;
 
-function triggerFlash(el, cls) {
-    try {
-      el.classList.remove('flash-up','flash-down');
-      void el.offsetWidth; // reflow
-      el.classList.add(cls);
-      clearTimeout(el._flashTO);
-      el._flashTO = setTimeout(() => { el.classList.remove(cls); }, 220);
-    } catch(e) {}
-  }
-
-  function triggerScoreAnim(el, cls) {
-    try {
-      el.classList.remove('anim-up','anim-down');
-      // reflow to restart animation if same class applies twice
-      void el.offsetWidth;
-      el.classList.add(cls);
-      clearTimeout(el._animTO);
-      el._animTO = setTimeout(() => { el.classList.remove(cls); }, 280);
-    } catch(e) {}
-  }
-
-  // Keep previous scores across updates
-  window._prevS1 = (typeof window._prevS1 === 'number') ? window._prevS1 : null;
-  window._prevS2 = (typeof window._prevS2 === 'number') ? window._prevS2 : null;
-
-function updateFromStorage() {
-    // Names, flags, scores
-    document.getElementById('flag1').src = localStorage.getItem('team1Flag') || '';
-    document.getElementById('flag2').src = localStorage.getItem('team2Flag') || '';
-    const name1 = localStorage.getItem('team1Name') || 'Team 1';
-    const name2 = localStorage.getItem('team2Name') || 'Team 2';
-    document.getElementById('name1').textContent = name1;
-    document.getElementById('name2').textContent = name2;
-    const s1El = document.getElementById('score1');
-const newS1 = parseInt(localStorage.getItem('team1Score') || '0', 10);
-if (!window._prevInitDone && window._prevS1 === null) { window._prevS1 = newS1; }
-if (window._prevS1 !== null && newS1 !== window._prevS1) {
-  if (newS1 > window._prevS1) { triggerFlash(s1El, 'flash-up'); triggerPop(s1El); }
-  else { triggerFlash(s1El, 'flash-down'); triggerShrink(s1El); }
-}
-s1El.textContent = newS1;
-window._prevS1 = newS1;
-    const s2El = document.getElementById('score2');
-const newS2 = parseInt(localStorage.getItem('team2Score') || '0', 10);
-if (!window._prevInitDone && window._prevS2 === null) { window._prevS2 = newS2; }
-if (window._prevS2 !== null && newS2 !== window._prevS2) {
-  if (newS2 > window._prevS2) { triggerFlash(s2El, 'flash-up'); triggerPop(s2El); }
-  else { triggerFlash(s2El, 'flash-down'); triggerShrink(s2El); }
-}
-s2El.textContent = newS2;
-window._prevS2 = newS2;
-    document.getElementById('setNumber').textContent = `SET ${localStorage.getItem('setNumber') || '1'}`;
-
-    // Rotation duration (seconds) for set info
-    const rotateSec = Math.max(5, parseInt(localStorage.getItem('setInfoRotateSec') || '20', 10));
-
-    // Technical timeout
-    const techUntil = parseInt(localStorage.getItem('technicalTimeoutUntil') || '0', 10);
-    const now = Date.now();
-
-    // Team timeouts
-    const t1Until = parseInt(localStorage.getItem('timeoutTeam1Until') || '0', 10);
-    const t2Until = parseInt(localStorage.getItem('timeoutTeam2Until') || '0', 10);
-    const t1Remain = Math.max(0, Math.ceil((t1Until - now) / 1000));
-    const t2Remain = Math.max(0, Math.ceil((t2Until - now) / 1000));
-
-    // Build computed set-score info
-    const sets1 = parseInt(localStorage.getItem('team1Sets') || '0', 10);
-    const sets2 = parseInt(localStorage.getItem('team2Sets') || '0', 10);
-    const computed = computeSetInfo(name1, name2, sets1, sets2);
-
-    // Base custom text
-    const customText = (localStorage.getItem('setInfo') || '').trim();
-
-    // Compose set info bar message with priority:
-    // 1) Technical Timeout
-    // 2) Team Timeout (ANT Timeout (Xs)) – pick the one that's actually active (or the longer remaining if both exist)
-    // 3) Rotate between custom and computed every N seconds (if both exist)
-    let setInfoMsg = ' ';
-    if (techUntil && now < techUntil) {
-      const remain = Math.max(0, Math.ceil((techUntil - now) / 1000));
-      setInfoMsg = `TECHNICAL TIMEOUT (${remain}s)`;
-    } else if (t1Remain > 0 || t2Remain > 0) {
-      // pick the dominant active team timeout
-      const useTeam1 = (t1Remain >= t2Remain);
-      /*const code = extractCode(useTeam1 ? name1 : name2);
-      const sec  = useTeam1 ? t1Remain : t2Remain;
-      setInfoMsg = `${code} Timeout (${sec}s)`;*/
-      const fullName = useTeam1 ? name1 : name2;
-      const sec = useTeam1 ? t1Remain : t2Remain;
-      setInfoMsg = `${fullName} Timeout (${sec}s)`;
-
-    } else {
-      const haveComputed = !!computed;
-      const haveCustom = !!customText;
-      setInfoMsg = customText || computed || ' ';
-      if (haveComputed && haveCustom) {
-        const bucket = Math.floor(now / (rotateSec * 1000)) % 2;
-        setInfoMsg = bucket === 1 ? computed : customText;
+      const s1El = document.getElementById('score1');
+      const newS1 = parseInt(localStorage.getItem('team1Score') || '0',10);
+      if (!window._prevInitDone && window._prevS1 === null) window._prevS1 = newS1;
+      if (window._prevS1 !== null && newS1 !== window._prevS1){
+        if (newS1 > window._prevS1){ triggerFlash(s1El,'flash-up'); triggerPop(s1El); }
+        else { triggerFlash(s1El,'flash-down'); triggerShrink(s1El); }
       }
-      if (techUntil) localStorage.removeItem('technicalTimeoutUntil');
+      s1El.querySelector('.slot').textContent = newS1;
+      window._prevS1 = newS1;
+
+      const s2El = document.getElementById('score2');
+      const newS2 = parseInt(localStorage.getItem('team2Score') || '0',10);
+      if (!window._prevInitDone && window._prevS2 === null) window._prevS2 = newS2;
+      if (window._prevS2 !== null && newS2 !== window._prevS2){
+        if (newS2 > window._prevS2){ triggerFlash(s2El,'flash-up'); triggerPop(s2El); }
+        else { triggerFlash(s2El,'flash-down'); triggerShrink(s2El); }
+      }
+      s2El.querySelector('.slot').textContent = newS2;
+      window._prevS2 = newS2;
+
+      document.getElementById('setNumber').textContent = `SET ${localStorage.getItem('setNumber') || '1'}`;
+
+      // timeouts
+      const t1 = parseInt(localStorage.getItem('team1Timeouts') || '2',10);
+      const t2 = parseInt(localStorage.getItem('team2Timeouts') || '2',10);
+      document.getElementById('t1_1').style.visibility = t1>=1 ? 'visible' : 'hidden';
+      document.getElementById('t1_2').style.visibility = t1>=2 ? 'visible' : 'hidden';
+      document.getElementById('t2_1').style.visibility = t2>=1 ? 'visible' : 'hidden';
+      document.getElementById('t2_2').style.visibility = t2>=2 ? 'visible' : 'hidden';
+
+      // serve icon
+      const serving = localStorage.getItem('servingTeam');
+      document.getElementById('serveIcon1').style.display = serving === 'team1' ? 'inline-block' : 'none';
+      document.getElementById('serveIcon2').style.display = serving === 'team2' ? 'inline-block' : 'none';
+
+      // background + contrast
+      const t1Bg = localStorage.getItem('team1BgColor') || '#12121a';
+      const t2Bg = localStorage.getItem('team2BgColor') || '#8b1515';
+      document.getElementById('team1').style.background = t1Bg;
+      document.getElementById('team2').style.background = t2Bg;
+      const t1Text = getContrastColor(t1Bg), t2Text = getContrastColor(t2Bg);
+      document.getElementById('name1').style.color = t1Text; document.getElementById('score1').style.color = t1Text;
+      document.getElementById('name2').style.color = t2Text; document.getElementById('score2').style.color = t2Text;
     }
-    document.getElementById('setInfo').textContent = setInfoMsg;
 
-    // Serve bars (vertical, pulsing)
-    //const serving = localStorage.getItem('servingTeam');
-    //document.getElementById('serveBar1').classList.toggle('active', serving === 'team1');
-    //document.getElementById('serveBar2').classList.toggle('active', serving === 'team2');
+    function computeSetInfo(name1,name2,s1,s2){ if (s1===0&&s2===0) return ''; if (s1===3||s2===3) return `${(s1===3?name1:name2)} Wins ${s1} - ${s2}`; if (s1===s2) return `Match tied ${s1} - ${s2}`; return `${(s1>s2?name1:name2)} LEADS ${s1} - ${s2}` }
+    function getContrastColor(color){ const c=document.createElement('canvas').getContext('2d'); c.fillStyle=color; const computed=c.fillStyle; const hex = computed.charAt(0)==='#'?computed:rgbToHex(computed); const r=parseInt(hex.substr(1,2),16); const g=parseInt(hex.substr(3,2),16); const b=parseInt(hex.substr(5,2),16); const bright=(r*299+g*587+b*114)/1000; return bright>150?'black':'white' }
+    function rgbToHex(rgb){ const nums = rgb.match(/\d+/g)||[0,0,0]; return '#'+nums.map(n=>Number(n).toString(16).padStart(2,'0')).join('') }
 
-    // Serve indicator
-    const serving = localStorage.getItem('servingTeam');
-    document.getElementById('serveIcon1').style.display = (serving === 'team1') ? 'inline-block' : 'none';
-    document.getElementById('serveIcon2').style.display = (serving === 'team2') ? 'inline-block' : 'none';
-
-    // Timeout dots (remaining)
-    const t1 = parseInt(localStorage.getItem('team1Timeouts') || '2', 10);
-    const t2 = parseInt(localStorage.getItem('team2Timeouts') || '2', 10);
-    document.getElementById('t1_1').style.visibility = t1 >= 1 ? 'visible' : 'hidden';
-    document.getElementById('t1_2').style.visibility = t1 >= 2 ? 'visible' : 'hidden';
-    document.getElementById('t2_1').style.visibility = t2 >= 1 ? 'visible' : 'hidden';
-    document.getElementById('t2_2').style.visibility = t2 >= 2 ? 'visible' : 'hidden';
-
-    // Background colors + contrast colors for text and dots
-    const t1Bg = localStorage.getItem('team1BgColor') || '#222222';
-    const t2Bg = localStorage.getItem('team2BgColor') || '#b22222';
-    document.getElementById('team1').style.backgroundColor = t1Bg;
-    document.getElementById('team2').style.backgroundColor = t2Bg;
-
-    const t1Text = getContrastColor(t1Bg);
-    const t2Text = getContrastColor(t2Bg);
-    const t1Border = t1Text === 'white' ? '#111' : '#fff';
-    const t2Border = t2Text === 'white' ? '#111' : '#fff';
-
-    document.getElementById('name1').style.color = t1Text;
-    document.getElementById('score1').style.color = t1Text;
-    document.getElementById('name2').style.color = t2Text;
-    document.getElementById('score2').style.color = t2Text;
-
-    // Timeout dots contrast
-    ['t1_1','t1_2'].forEach(id => {
-      const el = document.getElementById(id);
-      el.style.backgroundColor = t1Text;
-      el.style.border = 'none';
-    });
-    ['t2_1','t2_2'].forEach(id => {
-      const el = document.getElementById(id);
-      el.style.backgroundColor = t2Text;
-      el.style.border = 'none';
-    });
-  }
-
-  function extractCode(name){
-    // Expect format: "ANT | ANTIGUA & BARBUDA" → "ANT"
-    if (!name) return 'TEAM';
-    const part = name.split('|')[0] || name;
-    const code = part.trim().split(/\s+/)[0];
-    return code.toUpperCase().slice(0, 4);
-  }
-
-  function computeSetInfo(name1, name2, s1, s2) {
-    if (s1 === 0 && s2 === 0) return '';
-    if (s1 === 3 || s2 === 3) {
-      const winner = s1 === 3 ? name1 : name2;
-      return `${winner} Wins ${s1} - ${s2}`;
-    }
-    if (s1 === s2) return `Match tied ${s1} - ${s2}`;
-    const leader = s1 > s2 ? name1 : name2;
-    return `${leader} LEADS ${s1} - ${s2}`;
-  }
-
-  // Contrast helper
-  function getContrastColor(color) {
-    const ctx = document.createElement('canvas').getContext('2d');
-    ctx.fillStyle = color;
-    const computed = ctx.fillStyle;
-    const hex = computed.charAt(0) === '#' ? computed : rgbToHex(computed);
-    const r = parseInt(hex.substr(1,2),16);
-    const g = parseInt(hex.substr(3,2),16);
-    const b = parseInt(hex.substr(5,2),16);
-    const brightness = (r*299 + g*587 + b*114)/1000;
-    return brightness > 150 ? 'black' : 'white';
-  }
-  function rgbToHex(rgb) {
-    const nums = rgb.match(/\d+/g) || [0,0,0];
-    return '#' + nums.map(n => Number(n).toString(16).padStart(2,'0')).join('');
-  }
-
-  window.addEventListener('storage', updateFromStorage);
-  window.addEventListener('load', updateFromStorage);
-  // store previous scores for next diff
-window._prevS1 = typeof newS1 === 'number' ? newS1 : parseInt(document.getElementById('score1').textContent||'0',10);
-window._prevS2 = typeof newS2 === 'number' ? newS2 : parseInt(document.getElementById('score2').textContent||'0',10);
-
-setInterval(updateFromStorage, 250);
-window._prevInitDone = true;
-</script>
+    window.addEventListener('storage', updateFromStorage);
+    window.addEventListener('load', updateFromStorage);
+    setInterval(updateFromStorage, 250);
+    window._prevInitDone = true;
+  </script>
 </body>
 </html>
